@@ -136,7 +136,7 @@
         card.className = 'monster-card';
 
         const monsterImg = document.createElement('img');
-        monsterImg.src = `image/${monster}.png`;
+        monsterImg.src = `image/${encodeURIComponent(monster)}.png`;
         monsterImg.alt = monster;
         monsterImg.className = 'monster-image';
         card.appendChild(monsterImg);
@@ -153,7 +153,7 @@
           itemDiv.className = 'item';
 
           const itemImg = document.createElement('img');
-          itemImg.src = `image/${item}.png`;
+          itemImg.src = `image/${encodeURIComponent(item)}.png`;
           itemImg.alt = item;
           itemImg.className = 'item-icon';
 
