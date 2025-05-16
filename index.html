@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Artale怪物掉落物一覽</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #1e1e1e;
+      color: #ddd;
+      padding: 2em;
+      margin: 0;
+    }
+    h1 {
+      color: #ffd700;
+      margin-top: 1em;
+    }
+    .disclaimer {
+      background-color: #2b2b2b;
+      color: #aaa;
+      padding: 1em;
+      font-size: 0.9em;
+      text-align: center;
+      border-bottom: 1px solid #444;
+    }
+    .disclaimer a {
+      color: #ccc;
+      text-decoration: underline;
+    }
+    input[type="text"] {
+      width: 300px;
+      padding: 0.5em;
+      margin-bottom: 1em;
+      border-radius: 5px;
+      border: 1px solid #666;
+      background: #333;
+      color: #fff;
+    }
+    label {
+      display: inline-block;
+      margin-left: 1em;
+      font-size: 0.9em;
+    }
+    #drop-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1em;
+    }
+    .monster-card {
+      background-color: #2a2a2a;
+      border: 1px solid #555;
+      border-radius: 8px;
+      padding: 1em;
+      width: 300px;
+      white-space: normal;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .monster-image {
+      width: 100px;
+      height: 100px;
+      object-fit: contain;
+      margin-bottom: 0.5em;
+    }
+    .monster-name {
+      font-weight: bold;
+      color: #ffcc00;
+      margin-bottom: 0.8em;
+    }
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 0.3em;
+      text-align: left;
+      padding-left: 1em;
+    }
+    img.item-icon {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      vertical-align: middle;
+      border-radius: 3px;
+    }
+    mark {
+      background-color: yellow;
+      color: black;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="disclaimer">
+    資料來源完全照搬自
+    <a href="https://docs.google.com/spreadsheets/d/1xb6FhSGcM6EIj7aDcUmxZA9zVxLEw8xxXxxej5Tcrt4/htmlview?gid=2100610320#gid=2100610320" target="_blank">
+      此 Google 試算表
+    </a>，
+    若有任何錯誤請聯絡 Discord：<strong style="color:#ccc">PAPA#sesmegonxhic</strong>，或於討論區貼文反應。
+  </div>
+
+  <h1>Artale怪物掉落物一覽</h1>
+  <input type="text" id="search" placeholder="輸入怪物或掉落物名稱來搜尋..." />
+  <label>
+    <input type="checkbox" id="toggle-filtered" />
+    只顯示符合條件的掉落物
+  </label>
+  <div id="drop-container">載入中...</div>
+
+  <script>
+    let allData = {};
+
+    function highlight(text, keyword) {
+      if (!keyword) return text;
+      const regex = new RegExp(`(${keyword})`, 'gi');
+      return text.replace(regex, '<mark>$1</mark>');
+    }
+
+    function renderCards(data, keyword = "", onlyMatchedDrops = false) {
+      const container = document.getElementById('drop-container');
+      container.innerHTML = '';
+
+      const loweredKeyword = keyword.toLowerCase();
+
+      Object.entries(data).forEach(([monster, items]) => {
+        const monsterMatch = monster.toLowerCase().includes(loweredKeyword);
+        const matchedItems = items.filter(item => item.toLowerCase().includes(loweredKeyword));
+
+        const shouldShow =
+          (!keyword) ||
+          monsterMatch ||
+          matchedItems.length > 0;
+
+        if (!shouldShow) return;
+
+        const card = document.createElement('div');
+        card.className = 'monster-card';
+
+        const monsterImg = document.createElement('img');
+        monsterImg.src = `image/${monster}.png`;
+        monsterImg.alt = monster;
+        monsterImg.className = 'monster-image';
+        card.appendChild(monsterImg);
+
+        const monsterTitle = document.createElement('div');
+        monsterTitle.className = 'monster-name';
+        monsterTitle.innerHTML = highlight(monster, keyword);
+        card.appendChild(monsterTitle);
+
+        const itemsToShow = onlyMatchedDrops && keyword ? matchedItems : items;
+
+        itemsToShow.forEach(item => {
+          const itemDiv = document.createElement('div');
+          itemDiv.className = 'item';
+
+          const itemImg = document.createElement('img');
+          itemImg.src = `image/${item}.png`;
+          itemImg.alt = item;
+          itemImg.className = 'item-icon';
+
+          const itemText = document.createElement('span');
+          itemText.innerHTML = highlight(item, keyword);
+
+          itemDiv.appendChild(itemImg);
+          itemDiv.appendChild(itemText);
+          card.appendChild(itemDiv);
+        });
+
+        container.appendChild(card);
+      });
+
+      if (!container.hasChildNodes()) {
+        container.textContent = '找不到符合的怪物或掉落物';
+      }
+    }
+
+    function refresh() {
+      const keyword = document.getElementById('search').value;
+      const onlyMatchedDrops = document.getElementById('toggle-filtered').checked;
+      renderCards(allData, keyword, onlyMatchedDrops);
+    }
+
+    document.getElementById('search').addEventListener('input', refresh);
+    document.getElementById('toggle-filtered').addEventListener('change', refresh);
+
+    fetch('drop_data.json')
+      .then(response => response.json())
+      .then(data => {
+        allData = data;
+        refresh();
+      })
+      .catch(error => {
+        document.getElementById('drop-container').innerText = '載入失敗：' + error;
+      });
+  </script>
+
+</body>
+</html>
