@@ -8,12 +8,7 @@
       font-family: sans-serif;
       background: #1e1e1e;
       color: #ddd;
-      padding: 2em;
       margin: 0;
-    }
-    h1 {
-      color: #ffd700;
-      margin-top: 1em;
     }
     .disclaimer {
       background-color: #2b2b2b;
@@ -27,24 +22,36 @@
       color: #ccc;
       text-decoration: underline;
     }
+    .top-bar {
+      position: sticky;
+      top: 0;
+      background-color: #1e1e1e;
+      z-index: 100;
+      padding: 1em 2em 0 2em;
+      border-bottom: 1px solid #333;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1em;
+      margin-bottom: 1em;
+    }
     input[type="text"] {
       width: 300px;
       padding: 0.5em;
-      margin-bottom: 1em;
       border-radius: 5px;
       border: 1px solid #666;
       background: #333;
       color: #fff;
     }
     label {
-      display: inline-block;
-      margin-left: 1em;
       font-size: 0.9em;
     }
     #drop-container {
       display: flex;
       flex-wrap: wrap;
       gap: 1em;
+      padding: 1em 2em;
     }
     .monster-card {
       background-color: #2a2a2a;
@@ -65,7 +72,28 @@
     .monster-name {
       font-weight: bold;
       color: #ffcc00;
-      margin-bottom: 0.8em;
+      margin-bottom: 0.5em;
+    }
+    .monster-attr {
+      display: grid;
+      grid-template-columns: repeat(2, auto);
+      gap: 0.4em;
+      justify-content: center;
+      margin: 0.5em auto 1em auto;
+      padding: 0 1em;
+    }
+    .attr-box {
+      background-color: #111;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 0.3em 0.6em;
+      font-size: 0.85em;
+      color: #ccc;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .attr-box.fullwidth {
+      grid-column: span 2;
     }
     .item {
       display: flex;
@@ -75,12 +103,36 @@
       text-align: left;
       padding-left: 1em;
     }
-    img.item-icon {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-      vertical-align: middle;
-      border-radius: 3px;
+    .hide-text {
+      display: inline-block;
+      margin: 2px;
+    }
+    .hide-text .item-icon {
+      margin: 0;
+    }
+    .only-image-mode {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px;
+    }
+    .hide-text span {
+      display: none;
+    }
+    .hide-text:hover span {
+      display: inline-block;
+      position: absolute;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      margin-left: 5px;
+      z-index: 10;
+      white-space: nowrap;
+    }
+    .item-icon.highlighted {
+      box-shadow: 0 0 6px 3px yellow;
+      border-radius: 4px;
     }
     mark {
       background-color: yellow;
@@ -89,30 +141,25 @@
   </style>
 </head>
 <body>
-
   <div class="disclaimer">
     資料來源完全照搬自
     <a href="https://docs.google.com/spreadsheets/d/1xb6FhSGcM6EIj7aDcUmxZA9zVxLEw8xxXxxej5Tcrt4/htmlview?gid=2100610320#gid=2100610320" target="_blank">
       此 Google 試算表
-    </a>，
-    若有任何錯誤請聯絡 Discord：
-    <strong style="color:#ccc">PAPA#sesmegonxhic</strong>，
-    或於
-    <a href="https://discord.com/channels/1364050807544090695/1372871456286969866" target="_blank" style="color:#ccc; text-decoration: underline;">
-      討論區貼文
-    </a>反應。
+    </a>，若有任何錯誤請聯絡 Discord：<strong style="color:#ccc">PAPA#sesmegonxhic</strong>，或於
+    <a href="https://discord.com/channels/1364050807544090695/1372871456286969866" target="_blank" style="color:#ccc; text-decoration: underline;">討論區貼文</a>反應。
   </div>
-
-  <h1>Artale怪物掉落物一覽</h1>
-  <input type="text" id="search" placeholder="輸入怪物或掉落物名稱來搜尋..." />
-  <label>
-    <input type="checkbox" id="toggle-filtered" />
-    只顯示符合條件的掉落物
-  </label>
+  <div class="top-bar">
+    <div class="controls">
+      <input type="text" id="search" placeholder="輸入怪物或掉落物名稱來搜尋..." />
+      <label><input type="checkbox" id="toggle-filtered" /> 只顯示符合條件的掉落物</label>
+      <label><input type="checkbox" id="toggle-name-hover" /> 只顯示掉落物圖片</label>
+    </div>
+  </div>
   <div id="drop-container">載入中...</div>
 
   <script>
-    let allData = {};
+    let dropData = {};
+    let mobData = {};
 
     function highlight(text, keyword) {
       if (!keyword) return text;
@@ -120,21 +167,16 @@
       return text.replace(regex, '<mark>$1</mark>');
     }
 
-    function renderCards(data, keyword = "", onlyMatchedDrops = false) {
+    function renderCards(data, keyword = '', onlyMatchedDrops = false) {
       const container = document.getElementById('drop-container');
       container.innerHTML = '';
-
       const loweredKeyword = keyword.toLowerCase();
+      const onlyShowImage = document.getElementById('toggle-name-hover').checked;
 
       Object.entries(data).forEach(([monster, items]) => {
         const monsterMatch = monster.toLowerCase().includes(loweredKeyword);
         const matchedItems = items.filter(item => item.toLowerCase().includes(loweredKeyword));
-
-        const shouldShow =
-          (!keyword) ||
-          monsterMatch ||
-          matchedItems.length > 0;
-
+        const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0);
         if (!shouldShow) return;
 
         const card = document.createElement('div');
@@ -151,25 +193,61 @@
         monsterTitle.innerHTML = highlight(monster, keyword);
         card.appendChild(monsterTitle);
 
+        if (mobData[monster]) {
+          const [lv, pdef, mdef, eva, acc, file] = mobData[monster];
+          const attr = document.createElement('div');
+          attr.className = 'monster-attr';
+
+          const attrPairs = [
+            [`等級：${lv}`, `迴避：${eva}`],
+            [`物理防禦：${pdef}`, `魔法防禦：${mdef}`],
+          ];
+          attrPairs.forEach(([left, right]) => {
+            const boxL = document.createElement('div');
+            boxL.className = 'attr-box';
+            boxL.textContent = left;
+            attr.appendChild(boxL);
+
+            const boxR = document.createElement('div');
+            boxR.className = 'attr-box';
+            boxR.textContent = right;
+            attr.appendChild(boxR);
+          });
+          const accBox = document.createElement('div');
+          accBox.className = 'attr-box fullwidth';
+          accBox.textContent = `命中需求：${acc}`;
+          attr.appendChild(accBox);
+
+          card.appendChild(attr);
+        }
+
         const itemsToShow = onlyMatchedDrops && keyword ? matchedItems : items;
+
+        const itemContainer = document.createElement('div');
+        if (onlyShowImage) itemContainer.className = 'only-image-mode';
 
         itemsToShow.forEach(item => {
           const itemDiv = document.createElement('div');
-          itemDiv.className = 'item';
+          itemDiv.className = onlyShowImage ? 'hide-text' : 'item';
 
           const itemImg = document.createElement('img');
           itemImg.src = `image/${encodeURIComponent(item)}.png`;
           itemImg.alt = item;
           itemImg.className = 'item-icon';
 
+          if (keyword && item.toLowerCase().includes(loweredKeyword)) {
+            itemImg.classList.add('highlighted');
+          }
+
           const itemText = document.createElement('span');
           itemText.innerHTML = highlight(item, keyword);
 
           itemDiv.appendChild(itemImg);
           itemDiv.appendChild(itemText);
-          card.appendChild(itemDiv);
+          itemContainer.appendChild(itemDiv);
         });
 
+        card.appendChild(itemContainer);
         container.appendChild(card);
       });
 
@@ -181,22 +259,23 @@
     function refresh() {
       const keyword = document.getElementById('search').value;
       const onlyMatchedDrops = document.getElementById('toggle-filtered').checked;
-      renderCards(allData, keyword, onlyMatchedDrops);
+      renderCards(dropData, keyword, onlyMatchedDrops);
     }
+
+    Promise.all([
+      fetch('drop_data.json').then(res => res.json()),
+      fetch('mob.json').then(res => res.json())
+    ]).then(([drop, mob]) => {
+      dropData = drop;
+      mobData = mob;
+      refresh();
+    }).catch(error => {
+      document.getElementById('drop-container').innerText = '載入失敗：' + error;
+    });
 
     document.getElementById('search').addEventListener('input', refresh);
     document.getElementById('toggle-filtered').addEventListener('change', refresh);
-
-    fetch('drop_data.json')
-      .then(response => response.json())
-      .then(data => {
-        allData = data;
-        refresh();
-      })
-      .catch(error => {
-        document.getElementById('drop-container').innerText = '載入失敗：' + error;
-      });
+    document.getElementById('toggle-name-hover').addEventListener('change', refresh);
   </script>
-
 </body>
 </html>
