@@ -130,13 +130,14 @@
       z-index: 10;
       white-space: nowrap;
     }
-    .item-icon.highlighted {
-      box-shadow: 0 0 6px 3px yellow;
-      border-radius: 4px;
-    }
+    
     mark {
       background-color: yellow;
       color: black;
+    }
+    .item-icon.highlighted {
+      box-shadow: 0 0 6px 3px gold;
+      border-radius: 4px;
     }
   </style>
 </head>
@@ -160,6 +161,7 @@
   <script>
     let dropData = {};
     let mobData = {};
+let nameToIdMap = {};
 
     function highlight(text, keyword) {
       if (!keyword) return text;
@@ -241,6 +243,11 @@
         const itemContainer = document.createElement('div');
         if (onlyShowImage) itemContainer.className = 'only-image-mode';
 
+        const equipContainer = document.createElement('div');
+        const useContainer = document.createElement('div');
+        const etcContainer = document.createElement('div');
+        const otherContainer = document.createElement('div');
+
         itemsToShow.forEach(item => {
           const itemDiv = document.createElement('div');
           itemDiv.className = onlyShowImage ? 'hide-text' : 'item';
@@ -249,7 +256,11 @@
           itemImg.src = `image/${encodeURIComponent(item)}.png`;
           itemImg.alt = item;
           itemImg.className = 'item-icon';
+          
 
+          const itemId = parseInt(nameToIdMap[item] ?? '0');
+          const isEquip = itemId >= 1000001 && itemId <= 1999999;
+          
           if (keyword && item.toLowerCase().includes(loweredKeyword)) {
             itemImg.classList.add('highlighted');
           }
@@ -259,8 +270,43 @@
 
           itemDiv.appendChild(itemImg);
           itemDiv.appendChild(itemText);
-          itemContainer.appendChild(itemDiv);
+
+          if (isEquip) {
+            equipContainer.appendChild(itemDiv);
+          } else if (itemId >= 2000000 && itemId <= 2999999) {
+            useContainer.appendChild(itemDiv);
+          } else if (itemId >= 4000000 && itemId <= 4999999) {
+            etcContainer.appendChild(itemDiv);
+          } else {
+            otherContainer.appendChild(itemDiv);
+          }
         });
+
+        if (equipContainer.hasChildNodes()) {
+          const equipBox = document.createElement('div');
+          equipBox.style.border = '1px solid #42aaff';
+          equipBox.style.padding = '4px';
+          equipBox.style.marginBottom = '6px';
+          equipBox.appendChild(equipContainer);
+          itemContainer.appendChild(equipBox);
+        }
+        if (useContainer.hasChildNodes()) {
+          const useBox = document.createElement('div');
+          useBox.style.border = '1px solid #42ff42';
+          useBox.style.padding = '4px';
+          useBox.style.marginBottom = '6px';
+          useBox.appendChild(useContainer);
+          itemContainer.appendChild(useBox);
+        }
+        if (etcContainer.hasChildNodes()) {
+          const etcBox = document.createElement('div');
+          etcBox.style.border = '1px solid #ffaa42';
+          etcBox.style.padding = '4px';
+          etcBox.style.marginBottom = '6px';
+          etcBox.appendChild(etcContainer);
+          itemContainer.appendChild(etcBox);
+        }
+        itemContainer.appendChild(otherContainer);
 
         card.appendChild(itemContainer);
         container.appendChild(card);
@@ -279,10 +325,29 @@
 
     Promise.all([
       fetch('drop_data.json').then(res => res.json()),
-      fetch('mob.json').then(res => res.json())
-    ]).then(([drop, mob]) => {
-      dropData = drop;
+      fetch('mob.json').then(res => res.json()),
+      fetch('item.json').then(res => res.json())
+    ]).then(([drop, mob, itemMap]) => {
       mobData = mob;
+      // 根據 item ID 排序每個怪物的掉落物
+      nameToIdMap = {};
+      for (const [id, name] of Object.entries(itemMap)) {
+        nameToIdMap[name] = id;
+      }
+      Object.entries(drop).forEach(([monster, items]) => {
+        drop[monster] = items.sort((a, b) => {
+          const aId = parseInt(nameToIdMap[a] ?? '0');
+          const bId = parseInt(nameToIdMap[b] ?? '0');
+          const isAEquip = aId >= 1000001 && aId <= 1999999;
+          const isBEquip = bId >= 1000001 && bId <= 1999999;
+
+          if (isAEquip && !isBEquip) return -1;
+          if (!isAEquip && isBEquip) return 1;
+
+          return (aId || 0) - (bId || 0);
+        });
+      });
+      dropData = drop;
       refresh();
     }).catch(error => {
       document.getElementById('drop-container').innerText = '載入失敗：' + error;
