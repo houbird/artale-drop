@@ -202,15 +202,20 @@ let nameToIdMap = {};
         card.appendChild(monsterTitle);
 
         if (mobData[monster]) {
-          const [lv, exp, pdef, mdef, eva, acc, file] = mobData[monster];
+          const [lv, hp, exp, pdef, mdef, eva, acc, file] = mobData[monster];
           const attr = document.createElement('div');
           attr.className = 'monster-attr';
 
-          // 等級
+          // 等級與HP
           const lvBox = document.createElement('div');
-          lvBox.className = 'attr-box fullwidth';
+          lvBox.className = 'attr-box';
           lvBox.textContent = `等級：${lv}`;
           attr.appendChild(lvBox);
+
+          const hpBox = document.createElement('div');
+          hpBox.className = 'attr-box';
+          hpBox.textContent = `HP：${hp}`;
+          attr.appendChild(hpBox);
 
           // 經驗、迴避、物防、魔防
           const midPairs = [
