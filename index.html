@@ -173,7 +173,13 @@
       const loweredKeyword = keyword.toLowerCase();
       const onlyShowImage = document.getElementById('toggle-name-hover').checked;
 
-      Object.entries(data).forEach(([monster, items]) => {
+      Object.entries(data)
+        .sort(([a], [b]) => {
+          const aLv = mobData[a]?.[0] ?? 0;
+          const bLv = mobData[b]?.[0] ?? 0;
+          return aLv - bLv;
+        })
+        .forEach(([monster, items]) => {
         const monsterMatch = monster.toLowerCase().includes(loweredKeyword);
         const matchedItems = items.filter(item => item.toLowerCase().includes(loweredKeyword));
         const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0);
