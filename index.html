@@ -151,10 +151,15 @@
   </div>
   <div class="top-bar">
     <div class="controls">
-      <input type="text" id="search" placeholder="輸入怪物或掉落物名稱來搜尋..." />
-      <label><input type="checkbox" id="toggle-filtered" /> 只顯示符合條件的掉落物</label>
+      <input type="text" id="search" placeholder="搜尋怪物或掉落物..." />
+      <label><input type="checkbox" id="toggle-filtered" /> 只顯示符合的掉落</label>
       <label><input type="checkbox" id="toggle-name-hover" /> 只顯示掉落物圖片</label>
+      <label>等級：<input type="number" id="min-lv" style="width:60px;" placeholder="最小" /></label>
+      <label>~ <input type="number" id="max-lv" style="width:60px;" placeholder="最大" /></label>
     </div>
+      
+    </div>
+  </div>
   </div>
   <div id="drop-container">載入中...</div>
 
@@ -162,6 +167,7 @@
     let dropData = {};
     let mobData = {};
 let nameToIdMap = {};
+let bossTime = {};
 
     function highlight(text, keyword) {
       if (!keyword) return text;
@@ -170,6 +176,8 @@ let nameToIdMap = {};
     }
 
     function renderCards(data, keyword = '', onlyMatchedDrops = false) {
+      const minLv = parseInt(document.getElementById('min-lv').value) || 0;
+      const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
       const container = document.getElementById('drop-container');
       container.innerHTML = '';
       const loweredKeyword = keyword.toLowerCase();
@@ -184,7 +192,8 @@ let nameToIdMap = {};
         .forEach(([monster, items]) => {
         const monsterMatch = monster.toLowerCase().includes(loweredKeyword);
         const matchedItems = items.filter(item => item.toLowerCase().includes(loweredKeyword));
-        const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0);
+        const lv = mobData[monster]?.[0] ?? 0;
+        const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0) && lv >= minLv && lv <= maxLv;
         if (!shouldShow) return;
 
         const card = document.createElement('div');
@@ -202,43 +211,61 @@ let nameToIdMap = {};
         card.appendChild(monsterTitle);
 
         if (mobData[monster]) {
-          const [lv, hp, exp, pdef, mdef, eva, acc, file] = mobData[monster];
+          const [lv, hp, mp, exp, pdef, mdef, eva, acc, file] = mobData[monster];
           const attr = document.createElement('div');
           attr.className = 'monster-attr';
 
-          // 等級與HP
+          // 等級（占兩欄）
           const lvBox = document.createElement('div');
-          lvBox.className = 'attr-box';
+          lvBox.className = 'attr-box fullwidth';
           lvBox.textContent = `等級：${lv}`;
           attr.appendChild(lvBox);
 
+          // HP 和 MP
           const hpBox = document.createElement('div');
           hpBox.className = 'attr-box';
           hpBox.textContent = `HP：${hp}`;
           attr.appendChild(hpBox);
 
-          // 經驗、迴避、物防、魔防
-          const midPairs = [
-            [`經驗：${exp}`, `迴避：${eva}`],
-            [`物理防禦：${pdef}`, `魔法防禦：${mdef}`]
-          ];
-          midPairs.forEach(([left, right]) => {
-            const boxL = document.createElement('div');
-            boxL.className = 'attr-box';
-            boxL.textContent = left;
-            attr.appendChild(boxL);
+          const mpBox = document.createElement('div');
+          mpBox.className = 'attr-box';
+          mpBox.textContent = `MP：${mp}`;
+          attr.appendChild(mpBox);
 
-            const boxR = document.createElement('div');
-            boxR.className = 'attr-box';
-            boxR.textContent = right;
-            attr.appendChild(boxR);
-          });
+          // 經驗 和 迴避
+          const expBox = document.createElement('div');
+          expBox.className = 'attr-box';
+          expBox.textContent = `經驗：${exp}`;
+          attr.appendChild(expBox);
 
-          // 命中需求
+          const evaBox = document.createElement('div');
+          evaBox.className = 'attr-box';
+          evaBox.textContent = `迴避：${eva}`;
+          attr.appendChild(evaBox);
+
+          // 物防 和 魔防
+          const pdBox = document.createElement('div');
+          pdBox.className = 'attr-box';
+          pdBox.textContent = `物理防禦：${pdef}`;
+          attr.appendChild(pdBox);
+
+          const mdBox = document.createElement('div');
+          mdBox.className = 'attr-box';
+          mdBox.textContent = `魔法防禦：${mdef}`;
+          attr.appendChild(mdBox);
+
+          // 命中需求（占兩欄）
           const accBox = document.createElement('div');
           accBox.className = 'attr-box fullwidth';
           accBox.textContent = `命中需求：${acc}`;
           attr.appendChild(accBox);
+
+          if (bossTime[monster]) {
+            const respawnBox = document.createElement('div');
+            respawnBox.className = 'attr-box fullwidth';
+            respawnBox.textContent = `重生時間：${bossTime[monster]}`;
+            attr.appendChild(respawnBox);
+          }
 
           card.appendChild(attr);
         }
@@ -331,8 +358,10 @@ let nameToIdMap = {};
     Promise.all([
       fetch('drop_data.json').then(res => res.json()),
       fetch('mob.json').then(res => res.json()),
-      fetch('item.json').then(res => res.json())
-    ]).then(([drop, mob, itemMap]) => {
+      fetch('item.json').then(res => res.json()),
+      fetch('boss_time.json').then(res => res.json())
+    ]).then(([drop, mob, itemMap, boss]) => {
+      bossTime = boss;
       mobData = mob;
       // 根據 item ID 排序每個怪物的掉落物
       nameToIdMap = {};
@@ -361,6 +390,8 @@ let nameToIdMap = {};
     document.getElementById('search').addEventListener('input', refresh);
     document.getElementById('toggle-filtered').addEventListener('change', refresh);
     document.getElementById('toggle-name-hover').addEventListener('change', refresh);
+        document.getElementById('min-lv').addEventListener('input', refresh);
+    document.getElementById('max-lv').addEventListener('input', refresh);
   </script>
 </body>
 </html>
