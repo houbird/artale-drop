@@ -199,6 +199,8 @@ input[type="checkbox"] {
       <label>等級：<input type="number" id="min-lv" style="width:70px;" placeholder="最小" /></label>
       <label>~</label>
       <label><input type="number" id="max-lv" style="width:70px;" placeholder="最大" /></label>
+	  <button id="share-btn"
+        style="padding:0.5em 1em; border-radius:5px; border:1px solid #42aaff; background:#222; color:#42aaff; cursor:pointer;">分享</button>
     </div>
       
     </div>
@@ -454,6 +456,14 @@ document.getElementById('search').addEventListener('input', () => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(refresh, 300);
 });
+document.getElementById('share-btn').addEventListener('click', function () {
+      const searchValue = document.getElementById('search').value;
+      const url = new URL(window.location.href);
+      url.searchParams.set('searchkey', searchValue);
+      navigator.clipboard.writeText(url.toString()).then(() => {
+        alert('已複製分享連結！');
+      });
+    });
   </script>
 </body>
 </html>
