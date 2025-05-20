@@ -290,7 +290,7 @@ let bossTime = {};
           
 
           const itemId = parseInt(nameToIdMap[item] ?? '0');
-          const isEquip = (itemId >= 1000001 && itemId <= 1999999) || (itemId >= 2060000 && itemId <= 2079999);
+          const isEquip = (itemId >= 1000001 && itemId <= 1999999) || (itemId >= 2060000 && itemId <= 2079999) || (itemId >= 2330000 && itemId <= 2339999);
           
           if (keyword && item.toLowerCase().includes(loweredKeyword)) {
             itemImg.classList.add('highlighted');
