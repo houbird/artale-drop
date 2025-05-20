@@ -58,7 +58,7 @@
       border: 1px solid #555;
       border-radius: 8px;
       padding: 1em;
-      width: 287px;
+      width: 300px;
       white-space: normal;
       box-sizing: border-box;
       text-align: center;
@@ -387,7 +387,11 @@ let bossTime = {};
       document.getElementById('drop-container').innerText = '載入失敗：' + error;
     });
 
-    document.getElementById('search').addEventListener('input', refresh);
+    let debounceTimer;
+document.getElementById('search').addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(refresh, 300);
+});
     document.getElementById('toggle-filtered').addEventListener('change', refresh);
     document.getElementById('toggle-name-hover').addEventListener('change', refresh);
         document.getElementById('min-lv').addEventListener('input', refresh);
