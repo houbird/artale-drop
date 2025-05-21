@@ -441,6 +441,7 @@ input[type="checkbox"] {
           
           const itemId = parseInt(nameToIdMap[item] ?? '0');
           const isEquip = (itemId >= 1000001 && itemId <= 1999999) || (itemId >= 2060000 && itemId <= 2079999) || (itemId >= 2330000 && itemId <= 2339999);
+          const isConsumable = itemId >= 2000000 && itemId <= 2999999;
           
           if (keyword && item.toLowerCase().includes(loweredKeyword)) {
             itemImg.classList.add('highlighted');
@@ -459,13 +460,19 @@ input[type="checkbox"] {
             itemLink.appendChild(itemText);
             itemDiv.appendChild(itemLink);
           } else {
-            itemDiv.appendChild(itemImg);
-            itemDiv.appendChild(itemText);
+            const itemLink = document.createElement('a');
+            itemLink.href = `https://maplesaga.com/library/cn/permalink/item/${itemId}`;
+            itemLink.target = '_blank';
+            itemLink.style.color = 'inherit';
+            itemLink.style.textDecoration = 'none';
+            itemLink.appendChild(itemImg);
+            itemLink.appendChild(itemText);
+            itemDiv.appendChild(itemLink);
           }
 
           if (isEquip) {
             equipContainer.appendChild(itemDiv);
-          } else if (itemId >= 2000000 && itemId <= 2999999) {
+          } else if (isConsumable) {
             useContainer.appendChild(itemDiv);
           } else if (itemId >= 4000000 && itemId <= 4999999) {
             etcContainer.appendChild(itemDiv);
