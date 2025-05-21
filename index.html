@@ -522,8 +522,12 @@ input[type="checkbox"] {
       const regionSet = selectedRegions;
 
       const filterByRegion = (monster) => {
-        const maps = spawnMap[monster] ? Object.keys(spawnMap[monster]) : [];
+        // 如果怪物沒有出沒地圖資訊，直接顯示
+        if (!spawnMap[monster]) return true;
+        // 如果沒有選擇區域，顯示所有怪物
         if (regionSet.size === 0) return true;
+        // 檢查怪物的出沒地圖是否在選擇的區域中
+        const maps = Object.keys(spawnMap[monster]);
         return maps.some(map => regionSet.has(map.split('：')[0]));
       };
 
