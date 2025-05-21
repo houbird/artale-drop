@@ -439,7 +439,6 @@ input[type="checkbox"] {
           itemImg.alt = item;
           itemImg.className = 'item-icon';
           
-
           const itemId = parseInt(nameToIdMap[item] ?? '0');
           const isEquip = (itemId >= 1000001 && itemId <= 1999999) || (itemId >= 2060000 && itemId <= 2079999) || (itemId >= 2330000 && itemId <= 2339999);
           
@@ -450,8 +449,19 @@ input[type="checkbox"] {
           const itemText = document.createElement('span');
           itemText.innerHTML = highlight(item, keyword);
 
-          itemDiv.appendChild(itemImg);
-          itemDiv.appendChild(itemText);
+          if (isEquip) {
+            const itemLink = document.createElement('a');
+            itemLink.href = `https://maplesaga.com/library/cn/permalink/equip/${itemId}`;
+            itemLink.target = '_blank';
+            itemLink.style.color = 'inherit';
+            itemLink.style.textDecoration = 'none';
+            itemLink.appendChild(itemImg);
+            itemLink.appendChild(itemText);
+            itemDiv.appendChild(itemLink);
+          } else {
+            itemDiv.appendChild(itemImg);
+            itemDiv.appendChild(itemText);
+          }
 
           if (isEquip) {
             equipContainer.appendChild(itemDiv);
