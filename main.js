@@ -13,6 +13,19 @@ let selectedResistances = new Set();
 
 function highlight(text, keyword) {
   if (!keyword) return text;
+  
+  // 處理 OR 搜尋的高亮
+  if (keyword.includes('|')) {
+    const keywords = keyword.split('|').map(k => k.trim());
+    let highlightedText = text;
+    keywords.forEach(k => {
+      const regex = new RegExp(`(${k})`, 'gi');
+      highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+    });
+    return highlightedText;
+  }
+
+  // 一般搜尋的高亮
   const regex = new RegExp(`(${keyword})`, 'gi');
   return text.replace(regex, '<mark>$1</mark>');
 }
@@ -33,10 +46,22 @@ function getDisplayName(item) {
 }
 
 function matchesKeyword(item, keyword) {
-  const loweredKeyword = keyword.toLowerCase();
+  if (!keyword) return true;
   const loweredItem = item.toLowerCase();
   const alias = aliasMap[item];
-  if (loweredKeyword.includes('boss') && isBoss(item)) return true;
+  
+  // 處理 OR 搜尋
+  if (keyword.includes('|')) {
+    const keywords = keyword.split('|').map(k => k.trim().toLowerCase());
+    return keywords.some(k => {
+      if (k === 'boss' && isBoss(item)) return true;
+      return loweredItem.includes(k) || (alias && alias.toLowerCase().includes(k));
+    });
+  }
+
+  // 一般搜尋
+  const loweredKeyword = keyword.toLowerCase();
+  if (loweredKeyword === 'boss' && isBoss(item)) return true;
   return loweredItem.includes(loweredKeyword) || 
          (alias && alias.toLowerCase().includes(loweredKeyword));
 }
