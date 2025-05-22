@@ -198,6 +198,10 @@ label {
 }
 .attr-box.fullwidth {
 	grid-column: span 2;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 0.5em 0.6em;
 }
 .item {
 	display: flex;
@@ -313,4 +317,154 @@ input[type='number'] {
 	color: #fff;
 	font-size: 1em;
 	box-sizing: border-box;
+}
+
+/* 屬性剋制樣式 */
+.resistance-tag {
+	display: inline-flex;
+	align-items: center;
+	padding: 3px 8px;
+	border-radius: 4px;
+	margin: 1px;
+	font-size: 0.9em;
+	font-weight: bold;
+	color: white;
+	text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* 屬性顏色 */
+.resistance-tag.resistance-fire { 
+	background-color: #cc3700;
+}
+.resistance-tag.resistance-poison { 
+	background-color: #6a3da8;
+}
+.resistance-tag.resistance-ice { 
+	background-color: #4f95b8;
+}
+.resistance-tag.resistance-lightning { 
+	background-color: #ffa500;
+}
+.resistance-tag.resistance-holy { 
+	background-color: #ffd700;
+	color: #333;
+}
+.resistance-tag.resistance-heal {
+	background-color: #2ecc71;
+}
+
+.resistance-tag.resistance-all2 {
+	background: linear-gradient(45deg, #333 0%, #666 100%);
+	padding: 4px 8px;
+}
+
+/* 懸停效果 */
+.resistance-tag:hover {
+	transform: translateY(-1px);
+	transition: all 0.2s ease;
+}
+
+/* 選項容器樣式 */
+.toggle-resistance-btn {
+	padding: 0.3em 0.8em;
+	border-radius: 5px;
+	border: 1px solid #666;
+	background: #333;
+	color: #ddd;
+	cursor: pointer;
+	font-size: 0.9em;
+	transition: background 0.2s;
+}
+
+.toggle-resistance-btn:hover {
+	background: #444;
+}
+
+.resistance-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	width: 100%;
+	overflow: hidden;
+	max-height: 0;
+	transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+}
+
+.resistance-controls.show {
+	max-height: 200px;
+	padding: 0.5em;
+}
+
+/* 選項容器樣式 */
+#resistance-checkboxes {
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 0.5em;
+	width: 100%;
+	padding: 4px;
+}
+
+#resistance-checkboxes button {
+	background-color: #333;
+	border: 1px solid #666;
+	padding: 0.3em 0.8em;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 0.9em;
+	transition: all 0.2s ease;
+	text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+	width: 100%;
+	color: white;
+	position: relative;
+}
+
+/* 火按鈕 */
+#resistance-checkboxes button[value^="F"] {
+	background-color: #cc3700;
+	border-color: #cc3700;
+	grid-column: 1;
+}
+
+/* 毒按鈕 */
+#resistance-checkboxes button[value^="S"] {
+	background-color: #6a3da8;
+	border-color: #6a3da8;
+	grid-column: 2;
+}
+
+/* 冰按鈕 */
+#resistance-checkboxes button[value^="I"] {
+	background-color: #4f95b8;
+	border-color: #4f95b8;
+	grid-column: 3;
+}
+
+/* 雷按鈕 */
+#resistance-checkboxes button[value^="L"] {
+	background-color: #ffa500;
+	border-color: #ffa500;
+	grid-column: 4;
+}
+
+/* 聖按鈕 */
+#resistance-checkboxes button[value^="H3"] {
+	background-color: #ffd700;
+	border-color: #ffd700;
+	grid-column: 5;
+	color: #333;
+}
+
+/* 可治癒按鈕 */
+#resistance-checkboxes button[value="HS"] {
+	background-color: #2ecc71;
+	border-color: #2ecc71;
+	grid-column: 6;
+}
+
+#resistance-checkboxes button:hover {
+	filter: brightness(1.2);
+}
+
+#resistance-checkboxes button.selected {
+	box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
 }

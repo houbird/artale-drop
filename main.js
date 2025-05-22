@@ -9,6 +9,7 @@ let spawnMap = {};
 let selectedRegions = new Set();
 let area = {};
 let aliasMap = {};
+let selectedResistances = new Set();
 
 function highlight(text, keyword) {
   if (!keyword) return text;
@@ -47,7 +48,8 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
       return aLv - bLv;
     })
     .forEach(([monster, items]) => {
-      const monsterMatch = monster.toLowerCase().includes(loweredKeyword);
+      const monsterWithBoss = monster + (bossTime[monster] ? ' (BOSS)' : '');
+      const monsterMatch = monsterWithBoss.toLowerCase().includes(loweredKeyword);
       const matchedItems = items.filter(item => matchesKeyword(item, keyword));
       const lv = mobData[monster]?.[0] ?? 0;
       const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0) && lv >= minLv && lv <= maxLv;
@@ -64,7 +66,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
 
       const monsterTitle = document.createElement('div');
       monsterTitle.className = 'monster-name';
-      monsterTitle.innerHTML = highlight(monster, keyword);
+      monsterTitle.innerHTML = highlight(monsterWithBoss, keyword);
       card.appendChild(monsterTitle);
 
       if (mobData[monster]) {
@@ -81,7 +83,14 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
         // HP 和 MP
         const hpBox = document.createElement('div');
         hpBox.className = 'attr-box';
-        hpBox.textContent = `HP：${hp}`;
+        if (String(hp).includes('(')) {
+          const formattedHp = String(hp).replace('(', '<br><span style="font-size: 0.9em">(');
+          hpBox.innerHTML = `HP：${formattedHp}</span>`;
+          hpBox.style.whiteSpace = 'normal';
+          hpBox.style.lineHeight = '1.4';
+        } else {
+          hpBox.textContent = `HP：${hp}`;
+        }
         attr.appendChild(hpBox);
 
         const mpBox = document.createElement('div');
@@ -116,6 +125,142 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
         accBox.className = 'attr-box fullwidth';
         accBox.textContent = `命中需求：${acc}`;
         attr.appendChild(accBox);
+
+        // 新增屬性剋制資訊
+        if (mobData[monster][9]) {
+          const resBox = document.createElement('div');
+          resBox.className = 'attr-box fullwidth';
+          const resText = mobData[monster][9];
+          
+          // 解析屬性剋制字串
+          const buffList = [];
+          const resistList = [];
+          if (resText === 'ALL2') {
+            const span = document.createElement('span');
+            span.className = 'resistance-tag resistance-all2';
+            span.textContent = '物攻/魔法屬性減半';
+            resistList.push(span.outerHTML);
+          } else {
+            let i = 0;
+            while (i < resText.length) {
+              // 檢查是否是可治癒狀態
+              if (resText[i] === 'H' && i + 1 < resText.length && resText[i + 1] === 'S') {
+                const span = document.createElement('span');
+                span.className = 'resistance-tag resistance-heal';
+                span.textContent = '可治癒';
+                buffList.push(span.outerHTML);
+                i += 2;
+                continue;
+              }
+
+              // 處理一般屬性
+              const type = resText[i];
+              const value = resText[i + 1];
+              let typeText = '';
+              let typeClass = '';
+              let valueText = '';
+              
+              // 轉換屬性代號和對應的CSS類別
+              switch (type) {
+                case 'H': 
+                  typeText = '聖';
+                  typeClass = 'holy';
+                  break;
+                case 'F': 
+                  typeText = '火';
+                  typeClass = 'fire';
+                  break;
+                case 'I': 
+                  typeText = '冰';
+                  typeClass = 'ice';
+                  break;
+                case 'S': 
+                  typeText = '毒';
+                  typeClass = 'poison';
+                  break;
+                case 'L': 
+                  typeText = '雷';
+                  typeClass = 'lightning';
+                  break;
+              }
+              
+              // 轉換效果代號
+              switch (value) {
+                case '1': valueText = '無效'; break;
+                case '2': valueText = '減半'; break;
+                case '3': valueText = '加成'; break;
+              }
+              
+              if (typeText && valueText) {
+                const span = document.createElement('span');
+                span.className = `resistance-tag resistance-${typeClass}`;
+                span.textContent = `${typeText}${valueText}`;
+                if (value === '3') {
+                  buffList.push(span.outerHTML);
+                } else {
+                  resistList.push(span.outerHTML);
+                }
+              }
+              i += 2;
+            }
+          }
+          
+          if (buffList.length > 0 || resistList.length > 0) {
+            const resBox = document.createElement('div');
+            resBox.className = 'attr-box fullwidth';
+            
+            if (buffList.length > 0) {
+              const buffDiv = document.createElement('div');
+              buffDiv.style.marginBottom = '4px';
+              buffDiv.style.display = 'flex';
+              buffDiv.style.alignItems = 'center';
+              buffDiv.style.gap = '8px';
+              buffDiv.style.flexWrap = 'wrap';
+              buffDiv.style.justifyContent = 'center';
+              
+              const buffTitle = document.createElement('span');
+              buffTitle.textContent = '屬性加成：';
+              
+              const buffTags = document.createElement('div');
+              buffTags.style.display = 'flex';
+              buffTags.style.flexWrap = 'wrap';
+              buffTags.style.gap = '4px';
+              buffTags.style.justifyContent = 'center';
+              buffTags.style.flex = '1';
+              buffTags.innerHTML = buffList.join('');
+              
+              buffDiv.appendChild(buffTitle);
+              buffDiv.appendChild(buffTags);
+              resBox.appendChild(buffDiv);
+            }
+            
+            if (resistList.length > 0) {
+              const resistDiv = document.createElement('div');
+              resistDiv.style.display = 'flex';
+              resistDiv.style.alignItems = 'center';
+              resistDiv.style.gap = '8px';
+              resistDiv.style.flexWrap = 'wrap';
+              resistDiv.style.justifyContent = 'center';
+              
+              const resistTitle = document.createElement('span');
+              resistTitle.textContent = '屬性抗性：';
+              
+              const resistTags = document.createElement('div');
+              resistTags.style.display = 'flex';
+              resistTags.style.flexWrap = 'wrap';
+              resistTags.style.gap = '4px';
+              resistTags.style.justifyContent = 'center';
+              resistTags.style.flex = '1';
+              resistTags.innerHTML = resistList.join('');
+              
+              resistDiv.appendChild(resistTitle);
+              resistDiv.appendChild(resistTags);
+              resBox.appendChild(resistDiv);
+            }
+            
+            attr.appendChild(resBox);
+          }
+        }
 
         if (spawnMap[monster]) {
           const maps = Object.keys(spawnMap[monster]);
@@ -272,9 +417,25 @@ function refresh() {
     return maps.some(map => regionSet.has(map.split('：')[0]));
   };
 
+  const filterByResistance = (monster) => {
+    if (selectedResistances.size === 0) return true;
+    const resistance = mobData[monster]?.[9];
+    if (!resistance) return false;
+    
+    if (resistance === 'ALL2' && selectedResistances.has('ALL2')) return true;
+    
+    for (let i = 0; i < resistance.length; i += 2) {
+      const type = resistance[i];
+      const value = resistance[i + 1];
+      const key = `${type}${value}`;
+      if (selectedResistances.has(key)) return true;
+    }
+    return false;
+  };
+
   const filteredDrop = {};
   for (const [monster, items] of Object.entries(dropData)) {
-    if (filterByRegion(monster)) {
+    if (filterByRegion(monster) && filterByResistance(monster)) {
       filteredDrop[monster] = items;
     }
   }
@@ -364,6 +525,98 @@ Promise.all([
       regionCheckboxes.appendChild(label);
     }
   });
+
+  // 初始化屬性剋制選項
+  const resistanceLabels = {
+    'H': '聖',
+    'F': '火',
+    'I': '冰',
+    'S': '毒',
+    'L': '雷'
+  };
+  const valueLabels = {
+    '3': '加成'  // 只保留加成效果
+  };
+
+  const resistanceTypes = new Set();
+  Object.values(mob).forEach(mobInfo => {
+    const resistance = mobInfo[9];
+    if (!resistance) return;
+    
+    if (resistance === 'ALL2') {
+      return; // 不添加 ALL2
+    }
+    
+    let i = 0;
+    while (i < resistance.length) {
+      // 檢查是否是可治癒狀態
+      if (resistance[i] === 'H' && i + 1 < resistance.length && resistance[i + 1] === 'S') {
+        resistanceTypes.add('HS');
+        i += 2;
+        continue;
+      }
+
+      const type = resistance[i];
+      const value = resistance[i + 1];
+      // 跳過物理屬性和非加成效果
+      if (type === 'P' || value !== '3') {
+        i += 2;
+        continue;
+      }
+      // 檢查類型和值是否都有定義在對應表中
+      if (resistanceLabels[type] && valueLabels[value]) {
+        resistanceTypes.add(`${type}${value}`);
+      }
+      i += 2;
+    }
+  });
+
+  const resistanceCheckboxes = document.getElementById('resistance-checkboxes');
+
+  const sortedResistances = Array.from(resistanceTypes).sort((a, b) => {
+    // 定義順序權重
+    const order = {
+      'F3': 1,  // 火加成
+      'S3': 2,  // 毒加成
+      'I3': 3,  // 冰加成
+      'L3': 4,  // 雷加成
+      'H3': 5,  // 聖加成
+      'HS': 6   // 可治癒
+    };
+    
+    return (order[a] || 99) - (order[b] || 99);
+  });
+
+  sortedResistances.forEach(resistance => {
+    const label = document.createElement('label');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.value = resistance;
+    
+    if (resistance === 'HS') {
+      button.textContent = '可治癒';
+    } else {
+      const type = resistance[0];
+      const value = resistance[1];
+      button.textContent = `${resistanceLabels[type]}${valueLabels[value]}`;
+    }
+    
+    button.addEventListener('click', () => {
+      const isSelected = button.classList.contains('selected');
+      if (!isSelected) {
+        selectedResistances.add(resistance);
+        button.classList.add('selected');
+      } else {
+        selectedResistances.delete(resistance);
+        button.classList.remove('selected');
+      }
+      refresh();
+    });
+    
+    label.appendChild(button);
+    resistanceCheckboxes.appendChild(label);
+  });
+
   refresh();
 }).catch(error => {
   document.getElementById('drop-container').innerText = '載入失敗：' + error;
@@ -403,7 +656,7 @@ function toggleRegions() {
   const regionControls = document.querySelector('.region-controls');
   const toggleBtn = document.querySelector('.toggle-regions-btn');
   regionControls.classList.toggle('show');
-  toggleBtn.textContent = regionControls.classList.contains('show') ? '隱藏區域選擇' : '顯示區域選擇';
+  toggleBtn.textContent = regionControls.classList.contains('show') ? '隱藏區域選擇' : '區域選擇';
 }
 
 function toggleAllRegions() {
@@ -439,6 +692,13 @@ function selectDefaultRegions() {
   
   document.querySelector('.toggle-all-btn').textContent = '全選區域';
   refresh();
+}
+
+function toggleResistance() {
+  const resistanceControls = document.querySelector('.resistance-controls');
+  const toggleBtn = document.querySelector('.toggle-resistance-btn');
+  resistanceControls.classList.toggle('show');
+  toggleBtn.textContent = resistanceControls.classList.contains('show') ? '隱藏屬性選擇' : '屬性選擇';
 }
 
 let lastScrollTop = 0;
