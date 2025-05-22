@@ -16,18 +16,26 @@ function highlight(text, keyword) {
   return text.replace(regex, '<mark>$1</mark>');
 }
 
+function isBoss(monster) {
+  return bossTime && Object.prototype.hasOwnProperty.call(bossTime, monster);
+}
+
 function getDisplayName(item) {
+  let name = item;
   if (aliasMap[item] && aliasMap[item] !== item) {
-    return `${item}(${aliasMap[item]})`;
+    name = `${item}(${aliasMap[item]})`;
   }
-  return item;
+  if (isBoss(item)) {
+    name += ' (BOSS)';
+  }
+  return name;
 }
 
 function matchesKeyword(item, keyword) {
   const loweredKeyword = keyword.toLowerCase();
   const loweredItem = item.toLowerCase();
   const alias = aliasMap[item];
-  
+  if (loweredKeyword.includes('boss') && isBoss(item)) return true;
   return loweredItem.includes(loweredKeyword) || 
          (alias && alias.toLowerCase().includes(loweredKeyword));
 }
@@ -47,7 +55,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
       return aLv - bLv;
     })
     .forEach(([monster, items]) => {
-      const monsterMatch = monster.toLowerCase().includes(loweredKeyword);
+      const monsterMatch = matchesKeyword(monster, keyword);
       const matchedItems = items.filter(item => matchesKeyword(item, keyword));
       const lv = mobData[monster]?.[0] ?? 0;
       const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0) && lv >= minLv && lv <= maxLv;
@@ -64,7 +72,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
 
       const monsterTitle = document.createElement('div');
       monsterTitle.className = 'monster-name';
-      monsterTitle.innerHTML = highlight(monster, keyword);
+      monsterTitle.innerHTML = highlight(getDisplayName(monster), keyword);
       card.appendChild(monsterTitle);
 
       if (mobData[monster]) {
