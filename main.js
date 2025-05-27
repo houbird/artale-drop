@@ -306,7 +306,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
           summarySpan.textContent = '▶ ' + summary;
 
           const detailSpan = document.createElement('span');
-          detailSpan.innerHTML = maps.map(map => `<div style='text-align:left' class="map-name">${map}</div>`).join('');
+          detailSpan.innerHTML = maps.map(map => `<div style='text-align:left' class="map-name">${map.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`).join('');
           detailSpan.style.display = 'none';
           detailSpan.style.marginTop = '0.5em';
           detailSpan.style.marginLeft = '0.5em';
