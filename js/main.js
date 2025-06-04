@@ -26,13 +26,7 @@ function renderCards(entries, keyword = '', onlyMatchedDrops = false, append = f
   const loweredKeyword = keyword.toLowerCase();
   const onlyShowImage = document.getElementById('toggle-name-hover').checked;
 
-  entries
-    .sort(([a], [b]) => {
-      const aLv = mobData[a]?.[0] ?? 0;
-      const bLv = mobData[b]?.[0] ?? 0;
-      return aLv - bLv;
-    })
-    .forEach(([monster, items]) => {
+  entries.forEach(([monster, items]) => {
       const monsterMatch = matchesKeyword(monster, keyword, aliasMap, bossTime);
       const matchedItems = items.filter(item => matchesKeyword(item, keyword, aliasMap, bossTime));
       const lv = mobData[monster]?.[0] ?? 0;
@@ -434,7 +428,11 @@ function refresh() {
     }
   }
 
-  currentEntries = Object.entries(filteredDrop);
+  currentEntries = Object.entries(filteredDrop).sort(([a], [b]) => {
+    const aLv = mobData[a]?.[0] ?? 0;
+    const bLv = mobData[b]?.[0] ?? 0;
+    return aLv - bLv;
+  });
   currentPage = 0;
   currentKeyword = keyword;
   currentOnlyMatchedDrops = onlyMatchedDrops;
