@@ -12,15 +12,21 @@ let area = {};
 let aliasMap = {};
 let selectedResistances = new Set();
 
-function renderCards(data, keyword = '', onlyMatchedDrops = false) {
+const PAGE_SIZE = 14;
+let currentEntries = [];
+let currentPage = 0;
+let currentKeyword = '';
+let currentOnlyMatchedDrops = false;
+
+function renderCards(entries, keyword = '', onlyMatchedDrops = false, append = false) {
   const minLv = parseInt(document.getElementById('min-lv').value) || 0;
   const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
   const container = document.getElementById('drop-container');
-  container.innerHTML = '';
+  if (!append) container.innerHTML = '';
   const loweredKeyword = keyword.toLowerCase();
   const onlyShowImage = document.getElementById('toggle-name-hover').checked;
 
-  Object.entries(data)
+  entries
     .sort(([a], [b]) => {
       const aLv = mobData[a]?.[0] ?? 0;
       const bLv = mobData[b]?.[0] ?? 0;
@@ -38,6 +44,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
 
       const monsterImg = document.createElement('img');
       monsterImg.src = `image/${encodeURIComponent(monster)}.png`;
+      monsterImg.loading = 'lazy';
       monsterImg.alt = monster;
       monsterImg.className = 'monster-image';
       card.appendChild(monsterImg);
@@ -304,6 +311,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
 
         const itemImg = document.createElement('img');
         itemImg.src = `image/${encodeURIComponent(item)}.png`;
+        itemImg.loading = 'lazy';
         itemImg.alt = item;
         itemImg.className = 'item-icon';
         
@@ -383,6 +391,14 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
     }
 }
 
+function renderNextPage() {
+  const start = currentPage * PAGE_SIZE;
+  const entries = currentEntries.slice(start, start + PAGE_SIZE);
+  if (entries.length === 0) return;
+  renderCards(entries, currentKeyword, currentOnlyMatchedDrops, start > 0);
+  currentPage++;
+}
+
 function refresh() {
   const keyword = document.getElementById('search').value;
   const onlyMatchedDrops = document.getElementById('toggle-filtered').checked;
@@ -418,7 +434,16 @@ function refresh() {
     }
   }
 
-  renderCards(filteredDrop, keyword, onlyMatchedDrops);
+  currentEntries = Object.entries(filteredDrop).sort(([a], [b]) => {
+    const aLv = mobData[a]?.[0] ?? 0;
+    const bLv = mobData[b]?.[0] ?? 0;
+    const diff = aLv - bLv;
+    return diff === 0 ? a.localeCompare(b) : diff;
+  });
+  currentPage = 0;
+  currentKeyword = keyword;
+  currentOnlyMatchedDrops = onlyMatchedDrops;
+  renderNextPage();
 }
 
 Promise.all([
@@ -697,6 +722,11 @@ window.addEventListener('scroll', () => {
   else if (scrollTop > lastScrollTop) {
     disclaimer.classList.add('hidden');
   }
-  
+
+  const distanceFromBottom = document.documentElement.scrollHeight - (scrollTop + window.innerHeight);
+  if (distanceFromBottom <= window.innerHeight) {
+    renderNextPage();
+  }
+
   lastScrollTop = scrollTop;
-}); 
+});
