@@ -11,6 +11,12 @@ let area = {};
 let aliasMap = {};
 let selectedResistances = new Set();
 
+let filteredEntries = [];
+let currentPage = 0;
+let currentKeyword = '';
+let currentOnlyMatchedDrops = false;
+const ITEMS_PER_PAGE = 14;
+
 function highlight(text, keyword) {
   if (!keyword) return text;
   
@@ -66,21 +72,15 @@ function matchesKeyword(item, keyword) {
          (alias && alias.toLowerCase().includes(loweredKeyword));
 }
 
-function renderCards(data, keyword = '', onlyMatchedDrops = false) {
+function renderCards(entries, keyword = '', onlyMatchedDrops = false, append = false) {
   const minLv = parseInt(document.getElementById('min-lv').value) || 0;
   const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
   const container = document.getElementById('drop-container');
-  container.innerHTML = '';
+  if (!append) container.innerHTML = '';
   const loweredKeyword = keyword.toLowerCase();
   const onlyShowImage = document.getElementById('toggle-name-hover').checked;
 
-  Object.entries(data)
-    .sort(([a], [b]) => {
-      const aLv = mobData[a]?.[0] ?? 0;
-      const bLv = mobData[b]?.[0] ?? 0;
-      return aLv - bLv;
-    })
-    .forEach(([monster, items]) => {
+  entries.forEach(([monster, items]) => {
       const monsterMatch = matchesKeyword(monster, keyword);
       const matchedItems = items.filter(item => matchesKeyword(item, keyword));
       const lv = mobData[monster]?.[0] ?? 0;
@@ -93,6 +93,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
       const monsterImg = document.createElement('img');
       monsterImg.src = `image/${encodeURIComponent(monster)}.png`;
       monsterImg.alt = monster;
+      monsterImg.loading = 'lazy';
       monsterImg.className = 'monster-image';
       card.appendChild(monsterImg);
 
@@ -359,6 +360,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
         const itemImg = document.createElement('img');
         itemImg.src = `image/${encodeURIComponent(item)}.png`;
         itemImg.alt = item;
+        itemImg.loading = 'lazy';
         itemImg.className = 'item-icon';
         
         const itemId = parseInt(nameToIdMap[item] ?? '0');
@@ -437,10 +439,20 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
     }
 }
 
+function renderNextPage() {
+  const start = currentPage * ITEMS_PER_PAGE;
+  if (start >= filteredEntries.length) return;
+  const slice = filteredEntries.slice(start, start + ITEMS_PER_PAGE);
+  renderCards(slice, currentKeyword, currentOnlyMatchedDrops, currentPage > 0);
+  currentPage++;
+}
+
 function refresh() {
-  const keyword = document.getElementById('search').value;
-  const onlyMatchedDrops = document.getElementById('toggle-filtered').checked;
+  currentKeyword = document.getElementById('search').value;
+  currentOnlyMatchedDrops = document.getElementById('toggle-filtered').checked;
   const regionSet = selectedRegions;
+  const minLv = parseInt(document.getElementById('min-lv').value) || 0;
+  const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
 
   const filterByRegion = (monster) => {
     if (!spawnMap[monster]) return true;
@@ -472,7 +484,23 @@ function refresh() {
     }
   }
 
-  renderCards(filteredDrop, keyword, onlyMatchedDrops);
+  filteredEntries = Object.entries(filteredDrop)
+    .sort(([a], [b]) => {
+      const aLv = mobData[a]?.[0] ?? 0;
+      const bLv = mobData[b]?.[0] ?? 0;
+      return aLv - bLv;
+    })
+    .filter(([monster, items]) => {
+      const monsterMatch = matchesKeyword(monster, currentKeyword);
+      const matchedItems = items.filter(item => matchesKeyword(item, currentKeyword));
+      const lv = mobData[monster]?.[0] ?? 0;
+      return (!currentKeyword || monsterMatch || matchedItems.length > 0) && lv >= minLv && lv <= maxLv;
+    });
+
+  const container = document.getElementById('drop-container');
+  container.innerHTML = '';
+  currentPage = 0;
+  renderNextPage();
 }
 
 Promise.all([
@@ -753,4 +781,9 @@ window.addEventListener('scroll', () => {
   }
   
   lastScrollTop = scrollTop;
-}); 
+
+  const threshold = window.innerHeight;
+  if (window.innerHeight + window.pageYOffset >= document.documentElement.scrollHeight - threshold) {
+    renderNextPage();
+  }
+});
