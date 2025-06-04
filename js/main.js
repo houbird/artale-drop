@@ -1,3 +1,4 @@
+import { highlight, isBoss, getDisplayName, matchesKeyword } from "./helpers.js";
 const params = new URLSearchParams(window.location.search);
 const searchParam = params.get('searchkey') || ''; 
 document.getElementById('search').value = searchParam;  
@@ -10,61 +11,6 @@ let selectedRegions = new Set();
 let area = {};
 let aliasMap = {};
 let selectedResistances = new Set();
-
-function highlight(text, keyword) {
-  if (!keyword) return text;
-  
-  // 處理 OR 搜尋的高亮
-  if (keyword.includes('|')) {
-    const keywords = keyword.split('|').map(k => k.trim());
-    let highlightedText = text;
-    keywords.forEach(k => {
-      const regex = new RegExp(`(${k})`, 'gi');
-      highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
-    });
-    return highlightedText;
-  }
-
-  // 一般搜尋的高亮
-  const regex = new RegExp(`(${keyword})`, 'gi');
-  return text.replace(regex, '<mark>$1</mark>');
-}
-
-function isBoss(monster) {
-  return bossTime && Object.prototype.hasOwnProperty.call(bossTime, monster);
-}
-
-function getDisplayName(item) {
-  let name = item;
-  if (aliasMap[item] && aliasMap[item] !== item) {
-    name = `${item}(${aliasMap[item]})`;
-  }
-  if (isBoss(item)) {
-    name += ' (BOSS)';
-  }
-  return name;
-}
-
-function matchesKeyword(item, keyword) {
-  if (!keyword) return true;
-  const loweredItem = item.toLowerCase();
-  const alias = aliasMap[item];
-  
-  // 處理 OR 搜尋
-  if (keyword.includes('|')) {
-    const keywords = keyword.split('|').map(k => k.trim().toLowerCase());
-    return keywords.some(k => {
-      if (k === 'boss' && isBoss(item)) return true;
-      return loweredItem.includes(k) || (alias && alias.toLowerCase().includes(k));
-    });
-  }
-
-  // 一般搜尋
-  const loweredKeyword = keyword.toLowerCase();
-  if (loweredKeyword === 'boss' && isBoss(item)) return true;
-  return loweredItem.includes(loweredKeyword) || 
-         (alias && alias.toLowerCase().includes(loweredKeyword));
-}
 
 function renderCards(data, keyword = '', onlyMatchedDrops = false) {
   const minLv = parseInt(document.getElementById('min-lv').value) || 0;
@@ -81,8 +27,8 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
       return aLv - bLv;
     })
     .forEach(([monster, items]) => {
-      const monsterMatch = matchesKeyword(monster, keyword);
-      const matchedItems = items.filter(item => matchesKeyword(item, keyword));
+      const monsterMatch = matchesKeyword(monster, keyword, aliasMap, bossTime);
+      const matchedItems = items.filter(item => matchesKeyword(item, keyword, aliasMap, bossTime));
       const lv = mobData[monster]?.[0] ?? 0;
       const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0) && lv >= minLv && lv <= maxLv;
       if (!shouldShow) return;
@@ -98,7 +44,7 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
 
       const monsterTitle = document.createElement('div');
       monsterTitle.className = 'monster-name';
-      monsterTitle.innerHTML = highlight(getDisplayName(monster), keyword);
+      monsterTitle.innerHTML = highlight(getDisplayName(monster, aliasMap, bossTime), keyword);
       card.appendChild(monsterTitle);
 
       if (mobData[monster]) {
@@ -364,12 +310,12 @@ function renderCards(data, keyword = '', onlyMatchedDrops = false) {
         const itemId = parseInt(nameToIdMap[item] ?? '0');
         const isEquip = (itemId >= 1000001 && itemId <= 1999999) || (itemId >= 2060000 && itemId <= 2079999) || (itemId >= 2330000 && itemId <= 2339999);
         
-        if (keyword && matchesKeyword(item, keyword)) {
+        if (keyword && matchesKeyword(item, keyword, aliasMap, bossTime)) {
           itemImg.classList.add('highlighted');
         }
 
         const itemText = document.createElement('span');
-        itemText.innerHTML = highlight(getDisplayName(item), keyword);
+        itemText.innerHTML = highlight(getDisplayName(item, aliasMap, bossTime), keyword);
 
         if (isEquip) {
           const itemLink = document.createElement('a');
