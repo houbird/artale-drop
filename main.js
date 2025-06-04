@@ -691,21 +691,25 @@ function toggleRegions() {
   toggleBtn.textContent = regionControls.classList.contains('show') ? '隱藏區域選擇' : '區域選擇';
 }
 
-function toggleAllRegions() {
-  const btn = document.querySelector('.toggle-all-btn');
-  const isSelectAll = btn.textContent === '全選區域';
+function selectAllRegions() {
   const checkboxes = document.querySelectorAll('#region-checkboxes input[type="checkbox"]');
   
   checkboxes.forEach(checkbox => {
-    checkbox.checked = isSelectAll;
-    if (isSelectAll) {
-      selectedRegions.add(checkbox.value);
-    } else {
-      selectedRegions.delete(checkbox.value);
-    }
+    checkbox.checked = true;
+    selectedRegions.add(checkbox.value);
   });
   
-  btn.textContent = isSelectAll ? '取消全選區域' : '全選區域';
+  refresh();
+}
+
+function deselectAllRegions() {
+  const checkboxes = document.querySelectorAll('#region-checkboxes input[type="checkbox"]');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+    selectedRegions.delete(checkbox.value);
+  });
+  
   refresh();
 }
 
