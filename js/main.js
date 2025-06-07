@@ -18,6 +18,16 @@ let currentPage = 0;
 let currentKeyword = '';
 let currentOnlyMatchedDrops = false;
 
+function updateResultInfo() {
+  const total = currentEntries.length;
+  const loaded = document.querySelectorAll('#drop-container .monster-card').length;
+  const remaining = Math.max(0, total - loaded);
+  const info = document.getElementById('result-info');
+  if (info) {
+    info.textContent = `總數 ${total}，已載入 ${loaded}，未載入 ${remaining}`;
+  }
+}
+
 function renderCards(entries, keyword = '', onlyMatchedDrops = false, append = false) {
   const minLv = parseInt(document.getElementById('min-lv').value) || 0;
   const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
@@ -388,9 +398,13 @@ function renderCards(entries, keyword = '', onlyMatchedDrops = false, append = f
 function renderNextPage() {
   const start = currentPage * PAGE_SIZE;
   const entries = currentEntries.slice(start, start + PAGE_SIZE);
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    updateResultInfo();
+    return;
+  }
   renderCards(entries, currentKeyword, currentOnlyMatchedDrops, start > 0);
   currentPage++;
+  updateResultInfo();
 }
 
 function refresh() {
@@ -447,6 +461,7 @@ function refresh() {
 
   window.scrollTo({ top: 0 });
   lastScrollTop = 0;
+  updateResultInfo();
 
   if (currentEntries.length === 0) {
     renderCards([], keyword, onlyMatchedDrops);
