@@ -396,6 +396,8 @@ function renderNextPage() {
 function refresh() {
   const keyword = document.getElementById('search').value;
   const onlyMatchedDrops = document.getElementById('toggle-filtered').checked;
+  const minLv = parseInt(document.getElementById('min-lv').value) || 0;
+  const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
   const regionSet = selectedRegions;
 
   const filterByRegion = (monster) => {
@@ -423,9 +425,15 @@ function refresh() {
 
   const filteredDrop = {};
   for (const [monster, items] of Object.entries(dropData)) {
-    if (filterByRegion(monster) && filterByResistance(monster)) {
-      filteredDrop[monster] = items;
-    }
+    if (!filterByRegion(monster) || !filterByResistance(monster)) continue;
+    const lv = mobData[monster]?.[0] ?? 0;
+    if (lv < minLv || lv > maxLv) continue;
+
+    const monsterMatch = matchesKeyword(monster, keyword, aliasMap, bossTime);
+    const matchedItems = items.filter(item => matchesKeyword(item, keyword, aliasMap, bossTime));
+    if (keyword && !monsterMatch && matchedItems.length === 0) continue;
+
+    filteredDrop[monster] = items;
   }
 
   currentEntries = Object.entries(filteredDrop).sort(([a], [b]) => {
@@ -436,6 +444,15 @@ function refresh() {
   currentPage = 0;
   currentKeyword = keyword;
   currentOnlyMatchedDrops = onlyMatchedDrops;
+
+  window.scrollTo({ top: 0 });
+  lastScrollTop = 0;
+
+  if (currentEntries.length === 0) {
+    renderCards([], keyword, onlyMatchedDrops);
+    return;
+  }
+
   renderNextPage();
 }
 
