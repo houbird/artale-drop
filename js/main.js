@@ -12,7 +12,19 @@ let area = {};
 let aliasMap = {};
 let selectedResistances = new Set();
 
-const PAGE_SIZE = 14;
+function getPageSize() {
+  const w = window.innerWidth;
+  if (w >= 3840) return 40; // 4K
+  if (w >= 2560) return 30; // 2K
+  if (w >= 1536) return 25; // 2xl screens
+  if (w >= 1280) return 20; // large screens
+  return 14; // default
+}
+
+let PAGE_SIZE = getPageSize();
+window.addEventListener('resize', () => {
+  PAGE_SIZE = getPageSize();
+});
 let currentEntries = [];
 let currentPage = 0;
 let currentKeyword = '';

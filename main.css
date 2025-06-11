@@ -566,21 +566,27 @@ input[type='number'] {
 }
 
 @media (min-width: 2560px) {
-	body {
-		font-size: 1.2em;
-	}
+        body {
+                font-size: 1.2em;
+        }
 
-	.container {
-		max-width: 2200px;
-	}
+        .container {
+                max-width: 2200px;
+        }
+        #drop-container {
+                grid-template-columns: repeat(6, 1fr);
+        }
 }
 
 @media (min-width: 3840px) {
-	body {
-		font-size: 1.4em;
-	}
+        body {
+                font-size: 1.4em;
+        }
 
-	.container {
-		max-width: 2800px;
-	}
+        .container {
+                max-width: 2800px;
+        }
+        #drop-container {
+                grid-template-columns: repeat(8, 1fr);
+        }
 }
