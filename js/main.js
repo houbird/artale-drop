@@ -1,769 +1,499 @@
 import { highlight, isBoss, getDisplayName, matchesKeyword } from "./helpers.js";
-const params = new URLSearchParams(window.location.search);
-const searchParam = params.get('searchkey') || ''; 
-document.getElementById('search').value = searchParam;  
-let dropData = {};
-let mobData = {};
-let nameToIdMap = {};
-let bossTime = {};
-let spawnMap = {};
-let selectedRegions = new Set();
-let area = {};
-let aliasMap = {};
-let selectedResistances = new Set();
+
+const state = {
+  dropData: {},
+  mobData: {},
+  nameToIdMap: {},
+  bossTime: {},
+  spawnMap: {},
+  area: {},
+  aliasMap: {},
+  selectedRegions: new Set(),
+  selectedResistances: new Set(),
+  currentEntries: [],
+  currentPage: 0,
+  pageSize: getPageSize(),
+};
+
+const els = {
+  search: document.getElementById('search'),
+  minLv: document.getElementById('min-lv'),
+  maxLv: document.getElementById('max-lv'),
+  container: document.getElementById('drop-container'),
+  resultInfo: document.getElementById('result-info'),
+  toggleFiltered: document.getElementById('toggle-filtered'),
+  toggleNameHover: document.getElementById('toggle-name-hover'),
+  regionBoxes: document.getElementById('region-checkboxes'),
+  resistanceBoxes: document.getElementById('resistance-checkboxes'),
+};
 
 function getPageSize() {
   const w = window.innerWidth;
-  if (w >= 3840) return 40; // 4K
-  if (w >= 2560) return 30; // 2K
-  if (w >= 1536) return 25; // 2xl screens
-  if (w >= 1280) return 20; // large screens
-  return 14; // default
+  if (w >= 3840) return 40;
+  if (w >= 2560) return 30;
+  if (w >= 1536) return 25;
+  if (w >= 1280) return 20;
+  return 14;
 }
 
-let PAGE_SIZE = getPageSize();
 window.addEventListener('resize', () => {
-  PAGE_SIZE = getPageSize();
+  state.pageSize = getPageSize();
 });
-let currentEntries = [];
-let currentPage = 0;
-let currentKeyword = '';
-let currentOnlyMatchedDrops = false;
 
-function updateResultInfo() {
-  const total = currentEntries.length;
-  const loaded = document.querySelectorAll('#drop-container .monster-card').length;
-  const remaining = Math.max(0, total - loaded);
-  const info = document.getElementById('result-info');
-  if (info) {
-    info.textContent = `總數 ${total}，已載入 ${loaded}，未載入 ${remaining}`;
-  }
-}
+async function loadData() {
+  const [drop, mob, itemMap, boss, mapData, mapExc, area, alias] = await Promise.all([
+    fetch('drop_data.json').then(r => r.json()),
+    fetch('mob.json').then(r => r.json()),
+    fetch('item.json').then(r => r.json()),
+    fetch('boss_time.json').then(r => r.json()),
+    fetch('map.json').then(r => r.json()),
+    fetch('map_exception.json').then(r => r.json()),
+    fetch('area.json').then(r => r.json()),
+    fetch('alias.json').then(r => r.json()),
+  ]);
 
-function renderCards(entries, keyword = '', onlyMatchedDrops = false, append = false) {
-  const minLv = parseInt(document.getElementById('min-lv').value) || 0;
-  const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
-  const container = document.getElementById('drop-container');
-  if (!append) container.innerHTML = '';
-  const loweredKeyword = keyword.toLowerCase();
-  const onlyShowImage = document.getElementById('toggle-name-hover').checked;
+  state.bossTime = boss;
+  state.mobData = mob;
+  state.area = area;
+  state.aliasMap = alias;
 
-  entries.forEach(([monster, items]) => {
-      const monsterMatch = matchesKeyword(monster, keyword, aliasMap, bossTime);
-      const matchedItems = items.filter(item => matchesKeyword(item, keyword, aliasMap, bossTime));
-      const lv = mobData[monster]?.[0] ?? 0;
-      const shouldShow = (!keyword || monsterMatch || matchedItems.length > 0) && lv >= minLv && lv <= maxLv;
-      if (!shouldShow) return;
+  state.nameToIdMap = Object.fromEntries(
+    Object.entries(itemMap).map(([id, name]) => [name, id])
+  );
 
-      const card = document.createElement('div');
-      card.className = 'monster-card';
+  state.spawnMap = buildSpawnMap(mapData, mapExc);
 
-      const monsterImg = document.createElement('img');
-      monsterImg.src = `image/${encodeURIComponent(monster)}.png`;
-      monsterImg.loading = 'lazy';
-      monsterImg.alt = monster;
-      monsterImg.className = 'monster-image';
-      card.appendChild(monsterImg);
-
-      const monsterTitle = document.createElement('div');
-      monsterTitle.className = 'monster-name';
-      monsterTitle.innerHTML = highlight(getDisplayName(monster, aliasMap, bossTime), keyword);
-      card.appendChild(monsterTitle);
-
-      if (mobData[monster]) {
-        const [lv, hp, mp, exp, pdef, mdef, eva, acc, file] = mobData[monster];
-        const attr = document.createElement('div');
-        attr.className = 'monster-attr';
-
-        // 等級（占兩欄）
-        const lvBox = document.createElement('div');
-        lvBox.className = 'attr-box fullwidth';
-        lvBox.textContent = `等級：${lv}`;
-        attr.appendChild(lvBox);
-
-        // HP 和 MP
-        const hpBox = document.createElement('div');
-        hpBox.className = 'attr-box';
-        if (String(hp).includes('(')) {
-          const formattedHp = String(hp).replace('(', '<br><span style="font-size: 0.9em">(');
-          hpBox.innerHTML = `HP：${formattedHp}</span>`;
-          hpBox.style.whiteSpace = 'normal';
-          hpBox.style.lineHeight = '1.4';
-        } else {
-          hpBox.textContent = `HP：${hp}`;
-        }
-        attr.appendChild(hpBox);
-
-        const mpBox = document.createElement('div');
-        mpBox.className = 'attr-box';
-        mpBox.textContent = `MP：${mp}`;
-        attr.appendChild(mpBox);
-
-        // 經驗 和 迴避
-        const expBox = document.createElement('div');
-        expBox.className = 'attr-box';
-        expBox.textContent = `經驗：${exp}`;
-        attr.appendChild(expBox);
-
-        const evaBox = document.createElement('div');
-        evaBox.className = 'attr-box';
-        evaBox.textContent = `迴避：${eva}`;
-        attr.appendChild(evaBox);
-
-        // 物防 和 魔防
-        const pdBox = document.createElement('div');
-        pdBox.className = 'attr-box';
-        pdBox.textContent = `物理防禦：${pdef}`;
-        attr.appendChild(pdBox);
-
-        const mdBox = document.createElement('div');
-        mdBox.className = 'attr-box';
-        mdBox.textContent = `魔法防禦：${mdef}`;
-        attr.appendChild(mdBox);
-
-        // 命中需求（占兩欄）
-        const accBox = document.createElement('div');
-        accBox.className = 'attr-box fullwidth';
-        accBox.textContent = `命中需求：${acc}`;
-        attr.appendChild(accBox);
-
-        // 新增屬性剋制資訊
-        if (mobData[monster][9]) {
-          const resBox = document.createElement('div');
-          resBox.className = 'attr-box fullwidth';
-          const resText = mobData[monster][9];
-          
-          // 解析屬性剋制字串
-          const buffList = [];
-          const resistList = [];
-          if (resText === 'ALL2') {
-            const span = document.createElement('span');
-            span.className = 'resistance-tag resistance-all2';
-            span.textContent = '物攻/魔法屬性減半';
-            resistList.push(span.outerHTML);
-          } else {
-            let i = 0;
-            while (i < resText.length) {
-              // 檢查是否是可治癒狀態
-              if (resText[i] === 'H' && i + 1 < resText.length && resText[i + 1] === 'S') {
-                const span = document.createElement('span');
-                span.className = 'resistance-tag resistance-heal';
-                span.textContent = '可治癒';
-                buffList.push(span.outerHTML);
-                i += 2;
-                continue;
-              }
-
-              // 處理一般屬性
-              const type = resText[i];
-              const value = resText[i + 1];
-              let typeText = '';
-              let typeClass = '';
-              let valueText = '';
-              
-              // 轉換屬性代號和對應的CSS類別
-              switch (type) {
-                case 'H': 
-                  typeText = '聖';
-                  typeClass = 'holy';
-                  break;
-                case 'F': 
-                  typeText = '火';
-                  typeClass = 'fire';
-                  break;
-                case 'I': 
-                  typeText = '冰';
-                  typeClass = 'ice';
-                  break;
-                case 'S': 
-                  typeText = '毒';
-                  typeClass = 'poison';
-                  break;
-                case 'L': 
-                  typeText = '雷';
-                  typeClass = 'lightning';
-                  break;
-              }
-              
-              // 轉換效果代號
-              switch (value) {
-                case '1': valueText = '無效'; break;
-                case '2': valueText = '減半'; break;
-                case '3': valueText = '加成'; break;
-              }
-              
-              if (typeText && valueText) {
-                const span = document.createElement('span');
-                span.className = `resistance-tag resistance-${typeClass}`;
-                span.textContent = `${typeText}${valueText}`;
-                if (value === '3') {
-                  buffList.push(span.outerHTML);
-                } else {
-                  resistList.push(span.outerHTML);
-                }
-              }
-              i += 2;
-            }
-          }
-          
-          if (buffList.length > 0 || resistList.length > 0) {
-            const resBox = document.createElement('div');
-            resBox.className = 'attr-box fullwidth';
-            
-            if (buffList.length > 0) {
-              const buffDiv = document.createElement('div');
-              buffDiv.style.marginBottom = '4px';
-              buffDiv.style.display = 'flex';
-              buffDiv.style.alignItems = 'center';
-              buffDiv.style.gap = '8px';
-              buffDiv.style.flexWrap = 'wrap';
-              buffDiv.style.justifyContent = 'center';
-              
-              const buffTitle = document.createElement('span');
-              buffTitle.textContent = '屬性加成：';
-              
-              const buffTags = document.createElement('div');
-              buffTags.style.display = 'flex';
-              buffTags.style.flexWrap = 'wrap';
-              buffTags.style.gap = '4px';
-              buffTags.style.justifyContent = 'center';
-              buffTags.style.flex = '1';
-              buffTags.innerHTML = buffList.join('');
-              
-              buffDiv.appendChild(buffTitle);
-              buffDiv.appendChild(buffTags);
-              resBox.appendChild(buffDiv);
-            }
-            
-            if (resistList.length > 0) {
-              const resistDiv = document.createElement('div');
-              resistDiv.style.display = 'flex';
-              resistDiv.style.alignItems = 'center';
-              resistDiv.style.gap = '8px';
-              resistDiv.style.flexWrap = 'wrap';
-              resistDiv.style.justifyContent = 'center';
-              
-              const resistTitle = document.createElement('span');
-              resistTitle.textContent = '屬性抗性：';
-              
-              const resistTags = document.createElement('div');
-              resistTags.style.display = 'flex';
-              resistTags.style.flexWrap = 'wrap';
-              resistTags.style.gap = '4px';
-              resistTags.style.justifyContent = 'center';
-              resistTags.style.flex = '1';
-              resistTags.innerHTML = resistList.join('');
-              
-              resistDiv.appendChild(resistTitle);
-              resistDiv.appendChild(resistTags);
-              resBox.appendChild(resistDiv);
-            }
-            
-            attr.appendChild(resBox);
-          }
-        }
-
-        if (spawnMap[monster]) {
-          const maps = Object.keys(spawnMap[monster]);
-          const summary = `出沒地圖（${maps.length}張）`;
-
-          const mapBox = document.createElement('div');
-          mapBox.className = 'attr-box fullwidth';
-          mapBox.style.cursor = 'pointer';
-
-          const summarySpan = document.createElement('span');
-          summarySpan.textContent = '▶ ' + summary;
-
-          const detailSpan = document.createElement('span');
-          detailSpan.innerHTML = maps.map(map => `<div style='text-align:left' class="map-name">${map.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`).join('');
-          detailSpan.style.display = 'none';
-          detailSpan.style.marginTop = '0.5em';
-          detailSpan.style.marginLeft = '0.5em';
-          detailSpan.style.color = '#aaa';
-          detailSpan.style.userSelect = 'text';
-
-          mapBox.appendChild(summarySpan);
-          mapBox.appendChild(detailSpan);
-
-          summarySpan.style.userSelect = 'none';
-          summarySpan.style.cursor = 'pointer';
-          
-          mapBox.addEventListener('click', (e) => {
-            if (window.getSelection().toString() || e.target.classList.contains('map-name')) {
-              return;
-            }
-            e.stopPropagation();
-            const isShown = detailSpan.style.display === 'block';
-            detailSpan.style.display = isShown ? 'none' : 'block';
-            summarySpan.textContent = (isShown ? '▶ ' : '▼ ') + summary;
-          });
-
-          attr.appendChild(mapBox);
-        }
-
-        if (bossTime[monster]) {
-          const respawnBox = document.createElement('div');
-          respawnBox.className = 'attr-box fullwidth';
-          respawnBox.textContent = `重生時間：${bossTime[monster]}`;
-          attr.appendChild(respawnBox);
-        }
-
-        card.appendChild(attr);
-      }
-
-      const itemsToShow = onlyMatchedDrops && keyword ? matchedItems : items;
-
-      const itemContainer = document.createElement('div');
-      if (onlyShowImage) itemContainer.className = 'only-image-mode';
-
-      const equipContainer = document.createElement('div');
-      const useContainer = document.createElement('div');
-      const etcContainer = document.createElement('div');
-      const otherContainer = document.createElement('div');
-
-      itemsToShow.forEach(item => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = onlyShowImage ? 'hide-text' : 'item';
-
-        const itemImg = document.createElement('img');
-        itemImg.src = `image/${encodeURIComponent(item)}.png`;
-        itemImg.loading = 'lazy';
-        itemImg.alt = item;
-        itemImg.className = 'item-icon';
-        
-        const itemId = parseInt(nameToIdMap[item] ?? '0');
-        const isEquip = (itemId >= 1000001 && itemId <= 1999999) || (itemId >= 2060000 && itemId <= 2079999) || (itemId >= 2330000 && itemId <= 2339999);
-        
-        if (keyword && matchesKeyword(item, keyword, aliasMap, bossTime)) {
-          itemImg.classList.add('highlighted');
-        }
-
-        const itemText = document.createElement('span');
-        itemText.innerHTML = highlight(getDisplayName(item, aliasMap, bossTime), keyword);
-
-        if (isEquip) {
-          const itemLink = document.createElement('a');
-          itemLink.href = `https://maplesaga.com/library/cn/permalink/equip/${itemId}`;
-          itemLink.target = '_blank';
-          itemLink.style.color = 'inherit';
-          itemLink.style.textDecoration = 'none';
-          itemLink.appendChild(itemImg);
-          itemLink.appendChild(itemText);
-          itemDiv.appendChild(itemLink);
-        } else {
-          const itemLink = document.createElement('a');
-          itemLink.href = `https://maplesaga.com/library/cn/permalink/item/${itemId}`;
-          itemLink.target = '_blank';
-          itemLink.style.color = 'inherit';
-          itemLink.style.textDecoration = 'none';
-          itemLink.appendChild(itemImg);
-          itemLink.appendChild(itemText);
-          itemDiv.appendChild(itemLink);
-        }
-
-        if (isEquip) {
-          equipContainer.appendChild(itemDiv);
-        } else if (itemId >= 2000000 && itemId <= 2999999) {
-          useContainer.appendChild(itemDiv);
-        } else if (itemId >= 4000000 && itemId <= 4999999) {
-          etcContainer.appendChild(itemDiv);
-        } else {
-          otherContainer.appendChild(itemDiv);
-        }
+  state.dropData = Object.fromEntries(
+    Object.entries(drop).map(([monster, items]) => {
+      const sorted = items.slice().sort((a, b) => {
+        const aId = parseInt(state.nameToIdMap[a] ?? '0');
+        const bId = parseInt(state.nameToIdMap[b] ?? '0');
+        const aEquip = isEquip(aId);
+        const bEquip = isEquip(bId);
+        if (aEquip && !bEquip) return -1;
+        if (!aEquip && bEquip) return 1;
+        return (aId || 0) - (bId || 0);
       });
+      return [monster, sorted];
+    })
+  );
 
-      if (equipContainer.hasChildNodes()) {
-        const equipBox = document.createElement('div');
-        equipBox.style.border = '1px solid #42aaff';
-        equipBox.style.padding = '4px';
-        equipBox.style.marginBottom = '6px';
-        equipBox.appendChild(equipContainer);
-        itemContainer.appendChild(equipBox);
-      }
-      if (useContainer.hasChildNodes()) {
-        const useBox = document.createElement('div');
-        useBox.style.border = '1px solid #42ff42';
-        useBox.style.padding = '4px';
-        useBox.style.marginBottom = '6px';
-        useBox.appendChild(useContainer);
-        itemContainer.appendChild(useBox);
-      }
-      if (etcContainer.hasChildNodes()) {
-        const etcBox = document.createElement('div');
-        etcBox.style.border = '1px solid #ffaa42';
-        etcBox.style.padding = '4px';
-        etcBox.style.marginBottom = '6px';
-        etcBox.appendChild(etcContainer);
-        itemContainer.appendChild(etcBox);
-      }
-      itemContainer.appendChild(otherContainer);
-
-      card.appendChild(itemContainer);
-      container.appendChild(card);
-    });
-
-    if (!container.hasChildNodes()) {
-      container.textContent = '找不到符合的怪物或掉落物';
-    }
+  initRegions();
+  initResistances();
+  refresh();
 }
 
-function renderNextPage() {
-  const start = currentPage * PAGE_SIZE;
-  const entries = currentEntries.slice(start, start + PAGE_SIZE);
-  if (entries.length === 0) {
-    updateResultInfo();
-    return;
-  }
-  renderCards(entries, currentKeyword, currentOnlyMatchedDrops, start > 0);
-  currentPage++;
-  updateResultInfo();
-}
-
-function refresh() {
-  const keyword = document.getElementById('search').value;
-  const onlyMatchedDrops = document.getElementById('toggle-filtered').checked;
-  const minLv = parseInt(document.getElementById('min-lv').value) || 0;
-  const maxLv = parseInt(document.getElementById('max-lv').value) || Infinity;
-  const regionSet = selectedRegions;
-
-  const filterByRegion = (monster) => {
-    if (!spawnMap[monster]) return true;
-    if (regionSet.size === 0) return true;
-    const maps = Object.keys(spawnMap[monster]);
-    return maps.some(map => regionSet.has(map.split('：')[0]));
-  };
-
-  const filterByResistance = (monster) => {
-    if (selectedResistances.size === 0) return true;
-    const resistance = mobData[monster]?.[9];
-    if (!resistance) return false;
-    
-    if (resistance === 'ALL2' && selectedResistances.has('ALL2')) return true;
-    
-    for (let i = 0; i < resistance.length; i += 2) {
-      const type = resistance[i];
-      const value = resistance[i + 1];
-      const key = `${type}${value}`;
-      if (selectedResistances.has(key)) return true;
-    }
-    return false;
-  };
-
-  const filteredDrop = {};
-  for (const [monster, items] of Object.entries(dropData)) {
-    if (!filterByRegion(monster) || !filterByResistance(monster)) continue;
-    const lv = mobData[monster]?.[0] ?? 0;
-    if (lv < minLv || lv > maxLv) continue;
-
-    const monsterMatch = matchesKeyword(monster, keyword, aliasMap, bossTime);
-    const matchedItems = items.filter(item => matchesKeyword(item, keyword, aliasMap, bossTime));
-    if (keyword && !monsterMatch && matchedItems.length === 0) continue;
-
-    filteredDrop[monster] = items;
-  }
-
-  currentEntries = Object.entries(filteredDrop).sort(([a], [b]) => {
-    const aLv = mobData[a]?.[0] ?? 0;
-    const bLv = mobData[b]?.[0] ?? 0;
-    return aLv - bLv;
-  });
-  currentPage = 0;
-  currentKeyword = keyword;
-  currentOnlyMatchedDrops = onlyMatchedDrops;
-
-  window.scrollTo({ top: 0 });
-  lastScrollTop = 0;
-  updateResultInfo();
-
-  if (currentEntries.length === 0) {
-    renderCards([], keyword, onlyMatchedDrops);
-    return;
-  }
-
-  renderNextPage();
-}
-
-Promise.all([
-  fetch('drop_data.json').then(res => res.json()),
-  fetch('mob.json').then(res => res.json()),
-  fetch('item.json').then(res => res.json()),
-  fetch('boss_time.json').then(res => res.json()),
-  fetch('map.json').then(res => res.json()),
-  fetch('map_exception.json').then(res => res.json()),
-  fetch('area.json').then(res => res.json()),
-  fetch('alias.json').then(res => res.json())
-]).then(([drop, mob, itemMap, boss, map, mapException, areaData, alias]) => {
-  spawnMap = {};
-  area = areaData;
-  aliasMap = alias;
-  
-  for (const [monster, maps] of Object.entries(map)) {
-    spawnMap[monster] = {};
+function buildSpawnMap(mapData, mapExc) {
+  const result = {};
+  for (const [monster, maps] of Object.entries(mapData)) {
+    const obj = {};
     for (const [mapName, value] of Object.entries(maps)) {
-      if (mapException[mapName] !== undefined) {
-        if (mapException[mapName] !== 'INVALID') {
-          spawnMap[monster][mapException[mapName]] = value;
-        }
+      if (mapExc[mapName] !== undefined) {
+        if (mapExc[mapName] !== 'INVALID') obj[mapExc[mapName]] = value;
         continue;
       }
-
       const [region, ...rest] = mapName.split('：');
-      if (mapException[region] === 'INVALID') {
-        continue;
-      }
-      const correctRegion = mapException[region] || region;
-      const correctMapName = [correctRegion, ...rest].join('：');
-      spawnMap[monster][correctMapName] = value;
+      if (mapExc[region] === 'INVALID') continue;
+      const correctRegion = mapExc[region] || region;
+      const correctName = [correctRegion, ...rest].join('：');
+      obj[correctName] = value;
     }
-    if (Object.keys(spawnMap[monster]).length === 0) {
-      delete spawnMap[monster];
-    }
+    if (Object.keys(obj).length) result[monster] = obj;
   }
-  
-  bossTime = boss;
-  mobData = mob;
-  nameToIdMap = {};
-  for (const [id, name] of Object.entries(itemMap)) {
-    nameToIdMap[name] = id;
-  }
-  Object.entries(drop).forEach(([monster, items]) => {
-    drop[monster] = items.sort((a, b) => {
-      const aId = parseInt(nameToIdMap[a] ?? '0');
-      const bId = parseInt(nameToIdMap[b] ?? '0');
-      const isAEquip = aId >= 1000001 && aId <= 1999999;
-      const isBEquip = bId >= 1000001 && bId <= 1999999;
+  return result;
+}
 
-      if (isAEquip && !isBEquip) return -1;
-      if (!isAEquip && isBEquip) return 1;
-
-      return (aId || 0) - (bId || 0);
+function initRegions() {
+  const regions = new Set();
+  Object.values(state.spawnMap).forEach(maps => {
+    Object.keys(maps).forEach(m => regions.add(m.split('：')[0]));
+  });
+  for (const [region, def] of Object.entries(state.area)) {
+    if (!regions.has(region)) continue;
+    const label = document.createElement('label');
+    label.style.marginRight = '8px';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = region;
+    cb.checked = def === 1;
+    if (cb.checked) state.selectedRegions.add(region);
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.selectedRegions.add(region);
+      else state.selectedRegions.delete(region);
+      refresh();
     });
-  });
-  dropData = drop;
-
-  const regionSet = new Set();
-  for (const maps of Object.values(spawnMap)) {
-    Object.keys(maps).forEach(map => regionSet.add(map.split('：')[0]));
+    label.append(cb, ` ${region}`);
+    els.regionBoxes.appendChild(label);
   }
-  const regionCheckboxes = document.getElementById('region-checkboxes');
-  Object.entries(area).forEach(([region, defaultChecked]) => {
-    if (regionSet.has(region)) {
-      const label = document.createElement('label');
-      label.style.marginRight = '8px';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.value = region;
-      checkbox.checked = defaultChecked === 1;
-      if (checkbox.checked) selectedRegions.add(region);
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) selectedRegions.add(region);
-        else selectedRegions.delete(region);
-        refresh();
-      });
-      label.appendChild(checkbox);
-      label.append(` ${region}`);
-      regionCheckboxes.appendChild(label);
-    }
-  });
+}
 
-  // 初始化屬性剋制選項
-  const resistanceLabels = {
-    'H': '聖',
-    'F': '火',
-    'I': '冰',
-    'S': '毒',
-    'L': '雷'
-  };
-  const valueLabels = {
-    '3': '加成'  // 只保留加成效果
-  };
-
-  const resistanceTypes = new Set();
-  Object.values(mob).forEach(mobInfo => {
-    const resistance = mobInfo[9];
-    if (!resistance) return;
-    
-    if (resistance === 'ALL2') {
-      return; // 不添加 ALL2
-    }
-    
+function initResistances() {
+  const labels = { H: '聖', F: '火', I: '冰', S: '毒', L: '雷' };
+  const values = { '3': '加成' };
+  const types = new Set();
+  Object.values(state.mobData).forEach(info => {
+    const res = info[9];
+    if (!res || res === 'ALL2') return;
     let i = 0;
-    while (i < resistance.length) {
-      // 檢查是否是可治癒狀態
-      if (resistance[i] === 'H' && i + 1 < resistance.length && resistance[i + 1] === 'S') {
-        resistanceTypes.add('HS');
+    while (i < res.length) {
+      if (res[i] === 'H' && res[i + 1] === 'S') {
+        types.add('HS');
         i += 2;
         continue;
       }
-
-      const type = resistance[i];
-      const value = resistance[i + 1];
-      // 跳過物理屬性和非加成效果
-      if (type === 'P' || value !== '3') {
-        i += 2;
-        continue;
-      }
-      // 檢查類型和值是否都有定義在對應表中
-      if (resistanceLabels[type] && valueLabels[value]) {
-        resistanceTypes.add(`${type}${value}`);
-      }
+      const type = res[i];
+      const val = res[i + 1];
+      if (type === 'P' || val !== '3') { i += 2; continue; }
+      if (labels[type] && values[val]) types.add(`${type}${val}`);
       i += 2;
     }
   });
 
-  const resistanceCheckboxes = document.getElementById('resistance-checkboxes');
-
-  const sortedResistances = Array.from(resistanceTypes).sort((a, b) => {
-    // 定義順序權重
-    const order = {
-      'F3': 1,  // 火加成
-      'S3': 2,  // 毒加成
-      'I3': 3,  // 冰加成
-      'L3': 4,  // 雷加成
-      'H3': 5,  // 聖加成
-      'HS': 6   // 可治癒
-    };
-    
-    return (order[a] || 99) - (order[b] || 99);
-  });
-
-  sortedResistances.forEach(resistance => {
+  const order = { F3:1, S3:2, I3:3, L3:4, H3:5, HS:6 };
+  [...types].sort((a,b)=>(order[a]||99)-(order[b]||99)).forEach(res => {
     const label = document.createElement('label');
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.value = resistance;
-    
-    if (resistance === 'HS') {
-      button.textContent = '可治癒';
-    } else {
-      const type = resistance[0];
-      const value = resistance[1];
-      button.textContent = `${resistanceLabels[type]}${valueLabels[value]}`;
-    }
-    
-    button.addEventListener('click', () => {
-      const isSelected = button.classList.contains('selected');
-      if (!isSelected) {
-        selectedResistances.add(resistance);
-        button.classList.add('selected');
-      } else {
-        selectedResistances.delete(resistance);
-        button.classList.remove('selected');
-      }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.value = res;
+    btn.textContent = res === 'HS' ? '可治癒' : `${labels[res[0]]}${values[res[1]]}`;
+    btn.addEventListener('click', () => {
+      if (btn.classList.toggle('selected')) state.selectedResistances.add(res);
+      else state.selectedResistances.delete(res);
       refresh();
     });
-    
-    label.appendChild(button);
-    resistanceCheckboxes.appendChild(label);
+    label.appendChild(btn);
+    els.resistanceBoxes.appendChild(label);
   });
-
-  refresh();
-}).catch(error => {
-  document.getElementById('drop-container').innerText = '載入失敗：' + error;
-});
-
-let debounceTimer;
-document.getElementById('search').addEventListener('input', () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(refresh, 300);
-});
-document.getElementById('toggle-filtered').addEventListener('change', () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(refresh, 300);
-});
-document.getElementById('toggle-name-hover').addEventListener('change', () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(refresh, 300);
-});
-document.getElementById('min-lv').addEventListener('input', () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(refresh, 300);
-});
-document.getElementById('max-lv').addEventListener('input', () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(refresh, 300);
-});
-document.getElementById('share-btn').addEventListener('click', function () {
-  const searchValue = document.getElementById('search').value;
-  const url = new URL(window.location.href);
-  url.searchParams.set('searchkey', searchValue);
-  navigator.clipboard.writeText(url.toString()).then(() => {
-    alert('已複製分享連結！');
-  });
-});
-
-function toggleRegions() {
-  const regionControls = document.querySelector('.region-controls');
-  const toggleBtn = document.querySelector('.toggle-regions-btn');
-  regionControls.classList.toggle('show');
-  toggleBtn.textContent = regionControls.classList.contains('show') ? '隱藏區域選擇' : '區域選擇';
 }
 
-function selectAllRegions() {
-  const checkboxes = document.querySelectorAll('#region-checkboxes input[type="checkbox"]');
-  
-  checkboxes.forEach(checkbox => {
-    checkbox.checked = true;
-    selectedRegions.add(checkbox.value);
-  });
-  
-  refresh();
+function updateResultInfo() {
+  const total = state.currentEntries.length;
+  const loaded = els.container.querySelectorAll('.monster-card').length;
+  const remain = Math.max(0, total - loaded);
+  if (els.resultInfo)
+    els.resultInfo.textContent = `總數 ${total}，已載入 ${loaded}，未載入 ${remain}`;
 }
 
-function deselectAllRegions() {
-  const checkboxes = document.querySelectorAll('#region-checkboxes input[type="checkbox"]');
-  
-  checkboxes.forEach(checkbox => {
-    checkbox.checked = false;
-    selectedRegions.delete(checkbox.value);
-  });
-  
-  refresh();
+function filterRegion(monster) {
+  const maps = state.spawnMap[monster];
+  if (!maps || state.selectedRegions.size === 0) return true;
+  return Object.keys(maps).some(map => state.selectedRegions.has(map.split('：')[0]));
 }
 
-function selectDefaultRegions() {
-  const checkboxes = document.querySelectorAll('#region-checkboxes input[type="checkbox"]');
-  selectedRegions.clear();
-  
-  checkboxes.forEach(checkbox => {
-    const region = checkbox.value;
-    const isDefaultRegion = area[region] === 1;
-    checkbox.checked = isDefaultRegion;
-    if (isDefaultRegion) {
-      selectedRegions.add(region);
+function filterResistance(monster) {
+  if (state.selectedResistances.size === 0) return true;
+  const res = state.mobData[monster]?.[9];
+  if (!res) return false;
+  const needed = [...state.selectedResistances];
+  let i = 0;
+  const found = new Set();
+  while (i < res.length) {
+    if (res[i] === 'H' && res[i+1] === 'S') {
+      if (needed.includes('HS')) found.add('HS');
+      i += 2; continue;
     }
+    const pair = res[i]+res[i+1];
+    if (needed.includes(pair)) found.add(pair);
+    i += 2;
+  }
+  return needed.every(n => found.has(n));
+}
+
+function applyFilters() {
+  const keyword = els.search.value.trim();
+  const minLv = parseInt(els.minLv.value) || 0;
+  const maxLv = parseInt(els.maxLv.value) || Infinity;
+
+  state.currentEntries = Object.entries(state.dropData).filter(([monster, items]) => {
+    const lv = state.mobData[monster]?.[0] ?? 0;
+    if (lv < minLv || lv > maxLv) return false;
+    if (!filterRegion(monster)) return false;
+    if (!filterResistance(monster)) return false;
+    if (!keyword) return true;
+    const monsterMatch = matchesKeyword(monster, keyword, state.aliasMap, state.bossTime);
+    const matched = items.some(item => matchesKeyword(item, keyword, state.aliasMap, state.bossTime));
+    return monsterMatch || matched;
   });
-  
-  document.querySelector('.toggle-all-btn').textContent = '全選區域';
-  refresh();
+
+  state.currentPage = 0;
 }
 
-function toggleResistance() {
-  const resistanceControls = document.querySelector('.resistance-controls');
-  const toggleBtn = document.querySelector('.toggle-resistance-btn');
-  resistanceControls.classList.toggle('show');
-  toggleBtn.textContent = resistanceControls.classList.contains('show') ? '隱藏屬性選擇' : '屬性選擇';
+function renderNextPage() {
+  const start = state.currentPage * state.pageSize;
+  const slice = state.currentEntries.slice(start, start + state.pageSize);
+  if (!slice.length) return updateResultInfo();
+
+  const frag = document.createDocumentFragment();
+  slice.forEach(([monster, items]) => frag.appendChild(renderCard(monster, items)));
+  els.container.appendChild(frag);
+  state.currentPage++;
+  updateResultInfo();
 }
 
-let lastScrollTop = 0;
-const disclaimer = document.querySelector('.disclaimer');
+function renderCard(monster, items) {
+  const frag = document.createElement('div');
+  frag.className = 'monster-card';
+
+  const img = document.createElement('img');
+  img.src = `image/${encodeURIComponent(monster)}.png`;
+  img.loading = 'lazy';
+  img.alt = monster;
+  img.className = 'monster-image';
+  frag.appendChild(img);
+
+  const title = document.createElement('div');
+  title.className = 'monster-name';
+  title.innerHTML = highlight(getDisplayName(monster, state.aliasMap, state.bossTime), els.search.value.trim());
+  frag.appendChild(title);
+
+  if (state.mobData[monster]) {
+    frag.appendChild(buildAttr(monster));
+  }
+
+  const onlyMatched = els.toggleFiltered.checked && els.search.value.trim();
+  const itemsToShow = onlyMatched ? items.filter(i => matchesKeyword(i, els.search.value.trim(), state.aliasMap, state.bossTime)) : items;
+  frag.appendChild(buildItems(itemsToShow));
+
+  return frag;
+}
+
+function buildAttr(monster) {
+  const [lv,hp,mp,exp,pdef,mdef,eva,acc] = state.mobData[monster];
+  const res = state.mobData[monster][9];
+  const container = document.createElement('div');
+  container.className = 'monster-attr';
+
+  container.appendChild(createAttrBox(`等級：${lv}`, true));
+  container.appendChild(createAttrBox(formatHP(hp)));
+  container.appendChild(createAttrBox(`MP：${mp}`));
+  container.appendChild(createAttrBox(`經驗：${exp}`));
+  container.appendChild(createAttrBox(`迴避：${eva}`));
+  container.appendChild(createAttrBox(`物理防禦：${pdef}`));
+  container.appendChild(createAttrBox(`魔法防禦：${mdef}`));
+  container.appendChild(createAttrBox(`命中需求：${acc}`, true));
+
+  const resBox = buildResistance(res);
+  if (resBox) container.appendChild(resBox);
+
+  const maps = state.spawnMap[monster];
+  if (maps) container.appendChild(buildSpawn(maps));
+
+  if (state.bossTime[monster]) {
+    container.appendChild(createAttrBox(`重生時間：${state.bossTime[monster]}`, true));
+  }
+  return container;
+}
+
+function formatHP(hp) {
+  if (String(hp).includes('(')) {
+    const formatted = String(hp).replace('(', '<br><span style="font-size:0.9em">(');
+    return `HP：${formatted}</span>`;
+  }
+  return `HP：${hp}`;
+}
+
+function createAttrBox(text, full=false) {
+  const div = document.createElement('div');
+  div.className = 'attr-box' + (full ? ' fullwidth' : '');
+  if (text.includes('<br') || text.includes('<span')) {
+    div.innerHTML = text;
+    div.style.whiteSpace = 'normal';
+    div.style.lineHeight = '1.4';
+  } else {
+    div.textContent = text;
+  }
+  return div;
+}
+
+function buildResistance(resText) {
+  if (!resText) return null;
+  const buffList = [];
+  const resistList = [];
+  if (resText === 'ALL2') {
+    const span = document.createElement('span');
+    span.className = 'resistance-tag resistance-all2';
+    span.textContent = '物攻/魔法屬性減半';
+    resistList.push(span.outerHTML);
+  } else {
+    for (let i=0;i<resText.length;) {
+      if (resText[i]==='H' && resText[i+1]==='S') {
+        const span=document.createElement('span');
+        span.className='resistance-tag resistance-heal';
+        span.textContent='可治癒';
+        buffList.push(span.outerHTML); i+=2; continue;
+      }
+      const type=resText[i], val=resText[i+1];
+      const tMap={H:['聖','holy'],F:['火','fire'],I:['冰','ice'],S:['毒','poison'],L:['雷','lightning']};
+      const vMap={1:'無效',2:'減半',3:'加成'};
+      if(tMap[type]&&vMap[val]){
+        const span=document.createElement('span');
+        span.className=`resistance-tag resistance-${tMap[type][1]}`;
+        span.textContent=`${tMap[type][0]}${vMap[val]}`;
+        (val==='3'?buffList:resistList).push(span.outerHTML);
+      }
+      i+=2;
+    }
+  }
+  if(!buffList.length && !resistList.length) return null;
+  const box=document.createElement('div');
+  box.className='attr-box fullwidth';
+  if(buffList.length){
+    const div=document.createElement('div');
+    div.style.marginBottom='4px';
+    div.style.display='flex';
+    div.style.alignItems='center';
+    div.style.gap='8px';
+    div.style.flexWrap='wrap';
+    div.style.justifyContent='center';
+    const t=document.createElement('span');
+    t.textContent='屬性加成：';
+    const tags=document.createElement('div');
+    tags.style.display='flex';
+    tags.style.flexWrap='wrap';
+    tags.style.gap='4px';
+    tags.style.justifyContent='center';
+    tags.style.flex='1';
+    tags.innerHTML=buffList.join('');
+    div.append(t,tags);
+    box.appendChild(div);
+  }
+  if(resistList.length){
+    const div=document.createElement('div');
+    div.style.display='flex';
+    div.style.alignItems='center';
+    div.style.gap='8px';
+    div.style.flexWrap='wrap';
+    div.style.justifyContent='center';
+    const t=document.createElement('span');
+    t.textContent='屬性抗性：';
+    const tags=document.createElement('div');
+    tags.style.display='flex';
+    tags.style.flexWrap='wrap';
+    tags.style.gap='4px';
+    tags.style.justifyContent='center';
+    tags.style.flex='1';
+    tags.innerHTML=resistList.join('');
+    div.append(t,tags);
+    box.appendChild(div);
+  }
+  return box;
+}
+
+function buildSpawn(maps) {
+  const mapList = Object.keys(maps);
+  const summary = `出沒地圖（${mapList.length}張）`;
+  const box = document.createElement('div');
+  box.className='attr-box fullwidth';
+  box.style.cursor='pointer';
+  const summarySpan=document.createElement('span');
+  summarySpan.textContent='▶ '+summary;
+  summarySpan.style.userSelect='none';
+  summarySpan.style.cursor='pointer';
+  const detailSpan=document.createElement('span');
+  detailSpan.innerHTML=mapList.map(m=>`<div style='text-align:left' class="map-name">${m.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('');
+  detailSpan.style.display='none';
+  detailSpan.style.marginTop='0.5em';
+  detailSpan.style.marginLeft='0.5em';
+  detailSpan.style.color='#aaa';
+  detailSpan.style.userSelect='text';
+  box.append(summarySpan,detailSpan);
+  box.addEventListener('click',e=>{
+    if(window.getSelection().toString()||e.target.classList.contains('map-name'))return;
+    e.stopPropagation();
+    const show=detailSpan.style.display==='block';
+    detailSpan.style.display=show?'none':'block';
+    summarySpan.textContent=(show?'▶ ':'▼ ')+summary;
+  });
+  return box;
+}
+
+function buildItems(items) {
+  const onlyImage = els.toggleNameHover.checked;
+  const container = document.createElement('div');
+  if (onlyImage) container.className = 'only-image-mode';
+
+  const groups = {equip:[],use:[],etc:[],other:[]};
+  items.forEach(item => {
+    const div=document.createElement('div');
+    div.className=onlyImage?'hide-text':'item';
+    const img=document.createElement('img');
+    img.src=`image/${encodeURIComponent(item)}.png`;
+    img.loading='lazy';
+    img.alt=item;
+    img.className='item-icon';
+    const id=parseInt(state.nameToIdMap[item]??'0');
+    const equip=isEquip(id);
+    if(els.search.value.trim()&&matchesKeyword(item,els.search.value.trim(),state.aliasMap,state.bossTime))
+      img.classList.add('highlighted');
+    const span=document.createElement('span');
+    span.innerHTML=highlight(getDisplayName(item,state.aliasMap,state.bossTime),els.search.value.trim());
+    const a=document.createElement('a');
+    a.href=`https://maplesaga.com/library/cn/permalink/${equip?'equip':'item'}/${id}`;
+    a.target='_blank';
+    a.style.color='inherit';
+    a.style.textDecoration='none';
+    a.append(img,span);
+    div.appendChild(a);
+    if(equip) groups.equip.push(div);
+    else if(id>=2000000 && id<=2999999) groups.use.push(div);
+    else if(id>=4000000 && id<=4999999) groups.etc.push(div);
+    else groups.other.push(div);
+  });
+
+  const addGroup=(arr,border)=>{
+    if(!arr.length) return;
+    const box=document.createElement('div');
+    box.style.border=`1px solid ${border}`;
+    box.style.padding='4px';
+    box.style.marginBottom='6px';
+    arr.forEach(i=>box.appendChild(i));
+    container.appendChild(box);
+  };
+
+  addGroup(groups.equip,'#42aaff');
+  addGroup(groups.use,'#42ff42');
+  addGroup(groups.etc,'#ffaa42');
+  groups.other.forEach(i=>container.appendChild(i));
+
+  return container;
+}
+
+function isEquip(id){
+  return (id>=1000001 && id<=1999999)||(id>=2060000 && id<=2079999)||(id>=2330000 && id<=2339999);
+}
+
+function refresh() {
+  els.container.innerHTML = '';
+  applyFilters();
+  renderNextPage();
+}
 
 window.addEventListener('scroll', () => {
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  
-  // 當滾動到頂部時顯示
-  if (scrollTop <= 0) {
-    disclaimer.classList.remove('hidden');
-  } 
-  // 當向下滾動時隱藏
-  else if (scrollTop > lastScrollTop) {
-    disclaimer.classList.add('hidden');
-  }
+  const top = window.pageYOffset || document.documentElement.scrollTop;
+  const disclaimer = document.querySelector('.disclaimer');
+  if (top <= 0) disclaimer.classList.remove('hidden');
+  else if (top > (window.lastScrollTop || 0)) disclaimer.classList.add('hidden');
+  const distance = document.documentElement.scrollHeight - (top + window.innerHeight);
+  if (distance <= window.innerHeight) renderNextPage();
+  window.lastScrollTop = top;
+});
 
-  const distanceFromBottom = document.documentElement.scrollHeight - (scrollTop + window.innerHeight);
-  if (distanceFromBottom <= window.innerHeight) {
-    renderNextPage();
-  }
+els.search.addEventListener('input', debounce(refresh, 300));
+els.toggleFiltered.addEventListener('change', debounce(refresh, 300));
+els.toggleNameHover.addEventListener('change', debounce(refresh, 300));
+els.minLv.addEventListener('input', debounce(refresh, 300));
+els.maxLv.addEventListener('input', debounce(refresh, 300));
 
-  lastScrollTop = scrollTop;
+document.getElementById('share-btn').addEventListener('click', () => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('searchkey', els.search.value);
+  navigator.clipboard.writeText(url.toString()).then(() => alert('已複製分享連結！'));
+});
+
+function debounce(fn, delay){
+  let timer; return (...args)=>{clearTimeout(timer); timer=setTimeout(()=>fn.apply(this,args), delay);};
+}
+
+loadData().catch(e=>{
+  els.container.textContent = '載入失敗：' + e;
 });
