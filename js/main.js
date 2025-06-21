@@ -432,6 +432,7 @@ function buildItems(items) {
     a.target='_blank';
     a.style.color='inherit';
     a.style.textDecoration='none';
+    a.classList.add('flex', 'gap-1', 'items-center', 'justify-center');
     a.append(img,span);
     div.appendChild(a);
     if(equip) groups.equip.push(div);

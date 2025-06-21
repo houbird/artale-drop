@@ -222,6 +222,7 @@ label {
 	height: 50px;
 	object-fit: contain;
 	margin-bottom: 0.5em;
+	margin: 0 auto;
 }
 
 .monster-name {
