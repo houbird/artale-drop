@@ -63,9 +63,17 @@ async function loadData() {
 
   state.spawnMap = buildSpawnMap(mapData, mapExc);
 
-  state.dropData = Object.fromEntries(
-    Object.entries(drop).map(([monster, items]) => {
-      const sorted = items.slice().sort((a, b) => {
+  // 依照 mobData 等級排序 dropData 怪物順序
+  const mobOrder = Object.entries(mob)
+    .map(([name, arr]) => [name, arr?.[0] ?? 0])
+    .sort((a, b) => a[1] - b[1])
+    .map(([name]) => name);
+
+  const dropSorted = {};
+  mobOrder.forEach(monster => {
+    if (drop[monster]) {
+      // 依照裝備/非裝備與 id 排序掉落物
+      const sorted = drop[monster].slice().sort((a, b) => {
         const aId = parseInt(state.nameToIdMap[a] ?? '0');
         const bId = parseInt(state.nameToIdMap[b] ?? '0');
         const aEquip = isEquip(aId);
@@ -74,9 +82,10 @@ async function loadData() {
         if (!aEquip && bEquip) return 1;
         return (aId || 0) - (bId || 0);
       });
-      return [monster, sorted];
-    })
-  );
+      dropSorted[monster] = sorted;
+    }
+  });
+  state.dropData = dropSorted;
 
   initRegions();
   initResistances();
